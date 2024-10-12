@@ -1,0 +1,52 @@
+import logging
+import os
+from pathlib import Path
+
+logger = logging.getLogger(
+    __name__.split(".", 1)[0]
+)  # to avoid circular import from ..utils.logging
+
+# General environment variables accepted values for booleans
+ENV_VARS_TRUE_VALUES = {"1", "ON", "YES", "TRUE"}
+ENV_VARS_FALSE_VALUES = {"0", "OFF", "NO", "FALSE"}
+ENV_VARS_TRUE_AND_AUTO_VALUES = ENV_VARS_TRUE_VALUES.union({"AUTO"})
+ENV_VARS_FALSE_AND_AUTO_VALUES = ENV_VARS_FALSE_VALUES.union({"AUTO"})
+
+PATCHES_FILENAME = "patches.json"
+NO_PATCHES_FILENAME = "no_patches.json"
+IS_CONDA = os.getenv("CONDA_PREFIX") is not None
+
+# Cache location
+DEFAULT_XDG_CACHE_HOME = "~/.cache"
+XDG_CACHE_HOME = os.getenv("XDG_CACHE_HOME", DEFAULT_XDG_CACHE_HOME)
+DEFAULT_CACHE_HOME = os.path.join(XDG_CACHE_HOME, "biosets")
+BIOSETS_CACHE_HOME = os.path.expanduser(
+    os.getenv("BIOSETS_CACHE_HOME", DEFAULT_CACHE_HOME)
+)
+
+DEFAULT_BIOSETS_CACHE = os.path.join(BIOSETS_CACHE_HOME, "datasets")
+BIOSETS_DATASETS_CACHE = Path(
+    os.getenv("BIOSETS_DATASETS_CACHE", DEFAULT_BIOSETS_CACHE)
+)
+
+
+DEFAULT_BIOSETS_PATCHES_CACHE = os.path.join(BIOSETS_CACHE_HOME, "patches")
+BIOSETS_PATCHES_CACHE = Path(
+    os.getenv("BIOSETS_PATCHES_CACHE", DEFAULT_BIOSETS_PATCHES_CACHE)
+)
+
+DOWNLOADED_BIOSETS_DIR = "downloads"
+DEFAULT_DOWNLOADED_BIOSETS_PATH = os.path.join(
+    BIOSETS_DATASETS_CACHE, DOWNLOADED_BIOSETS_DIR
+)
+DOWNLOADED_BIOSETS_PATH = Path(
+    os.getenv("BIOSETS_DOWNLOADED_BIOSETS_PATH", DEFAULT_DOWNLOADED_BIOSETS_PATH)
+)
+
+EXTRACTED_BIOSETS_DIR = "extracted"
+DEFAULT_EXTRACTED_BIOSETS_PATH = os.path.join(
+    DEFAULT_DOWNLOADED_BIOSETS_PATH, EXTRACTED_BIOSETS_DIR
+)
+EXTRACTED_BIOSETS_PATH = Path(
+    os.getenv("BIOSETS_EXTRACTED_BIOSETS_PATH", DEFAULT_EXTRACTED_BIOSETS_PATH)
+)
