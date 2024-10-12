@@ -1,11 +1,11 @@
 # BioSets: Dataset Creation for Biological Research
 
-BioSets is a specialized library built on top of the `datasets` library, designed to
+🧬 BioSets is a specialized library built on top of the `datasets` library, designed to
 facilitate the loading, manipulation, and processing of biological datasets for machine
 learning purposes. It supports various types of biological data, including omics
 datasets such as genomics, transcriptomics, proteomics, and metabolomics, as well as
-other types of tabular biological data. BioSets allows researchers to efficiently
-analyze and train models on large-scale biological datasets.
+other types of tabular biological data. This library is intended to provide users
+with an efficient way to work with biological data in their machine learning pipelines.
 
 ## Overview
 
@@ -22,24 +22,24 @@ and high-performance data processing pipelines.
 
 ## Features
 
-- **Loading sample metadata and feature metadata**: BioSets provides the unique
+🧬 **Loading sample metadata and feature metadata**: BioSets provides the unique
 capability to load both sample metadata and feature metadata, facilitating modular
 downstream analysis pipelines. This ensures that users can easily manage and access
 detailed information about each sample and feature, improving the interpretability and
 flexibility of their datasets.
 
-- **Support for various biological data types**: BioSets includes predefined classes
+🧬 **Support for various biological data types**: BioSets includes predefined classes
 for different biological data types, such as genomic variants, gene expression data,
 clinical trial data, and OTU tables.
 
-- **Automatic Sample/Batch Detection**: BioSets can automatically detect sample and
+🧬 **Automatic Sample/Batch Detection**: BioSets can automatically detect sample and
 batch information from the loaded data, making it easier to handle batch effects and
 other confounding factors in downstream analyses.
 
-- **Custom dataset creation**: Create tailored datasets with custom features, metadata,
+🧬 **Custom dataset creation**: Create tailored datasets with custom features, metadata,
 and labels.
 
-- **Integration with datasets library**: BioSets builds on the functionality provided
+🧬 **Integration with datasets library**: BioSets builds on the functionality provided
 by the `datasets` library. For general-purpose dataset operations, users can refer to
 the `datasets` library documentation. If you do not use any of the
 `biosets.list_experiments()`, then it will simply act like Huggingface's `datasets`
@@ -104,19 +104,19 @@ With BioSets, users are encouraged to use specific experiment types for loading 
 such as `otu`, `maldi`, `rna`, or `snp` to ensure the appropriate configuration is
 applied:
 
-- **OTU Data**
+🧬 **OTU Data**
 
   ```python
   dataset = load_dataset("otu", data_files="/path/to/otu_data.csv")
   ```
 
-- **RNA Data**
+🧬 **RNA Data**
 
   ```python
   dataset = load_dataset("rna", data_files="/path/to/rna_data.csv")
   ```
 
-- **SNP Data**
+🧬 **SNP Data**
 
   ```python
   dataset = load_dataset("snp", data_files="/path/to/snp_data.csv")

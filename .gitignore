@@ -121,3 +121,6 @@ env/
 #Docker
 *Dockerfile
 *dockerignore
+
+# Wheel builder
+build.sh
