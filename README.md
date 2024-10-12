@@ -1,20 +1,18 @@
 # BioSets: Dataset Creation for Biological Research
 
-## Important Note
+Please note that this project is in the early stages of development. The documentation
+and features are subject to change.
+
+## Overview
 
 BioSets is a library built on top of the `datasets` library for loading, manipulating,
 and processing biological datasets for machine learning purposes. It supports genomics,
 transcriptomics, proteomics, metabolomics, and other types of biological data.
 
-## Overview
-
 This repository contains tools and documentation for creating biological datasets using
 BioSets. The library loads biological data from local files, creates custom datasets,
 and handles large volumes of biological information. BioSets is intended for
 researchers and data scientists in bioinformatics, systems biology, and biotechnology.
-
-BioSets loads and processes high-dimensional data, including sample metadata and
-feature metadata, to support modular data processing pipelines.
 
 ## Features
 
@@ -31,8 +29,8 @@ information from the loaded data to handle batch effects and confounding factors
 metadata, and labels.
 
 🧬 **Integration with datasets library**: BioSets builds on the `datasets` library's
-functionality. Without `biosets.list_experiments()`, it acts like Huggingface's
-`datasets` library.
+functionality. Note that if `path` is not a value found in `biosets.list_experiments()`,
+it acts like Huggingface's `datasets` library.
 
 ## Getting Started
 
