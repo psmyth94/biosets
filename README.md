@@ -1,59 +1,48 @@
 # BioSets: Dataset Creation for Biological Research
 
-🧬 BioSets is a specialized library built on top of the `datasets` library, designed to
-facilitate the loading, manipulation, and processing of biological datasets for machine
-learning purposes. It supports various types of biological data, including omics
-datasets such as genomics, transcriptomics, proteomics, and metabolomics, as well as
-other types of tabular biological data. This library is intended to provide users
-with an efficient way to work with biological data in their machine learning pipelines.
+## Important Note
+
+BioSets is a library built on top of the `datasets` library for loading, manipulating,
+and processing biological datasets for machine learning purposes. It supports genomics,
+transcriptomics, proteomics, metabolomics, and other types of biological data.
 
 ## Overview
 
 This repository contains tools and documentation for creating biological datasets using
-BioSets. The library provides capabilities for loading biological data from local
-files, creating custom datasets, and handling large volumes of biological information
-with ease. BioSets is particularly useful for researchers and data scientists working
-in fields such as bioinformatics, systems biology, and biotechnology.
+BioSets. The library loads biological data from local files, creates custom datasets,
+and handles large volumes of biological information. BioSets is intended for
+researchers and data scientists in bioinformatics, systems biology, and biotechnology.
 
-BioSets is geared towards accelerating the loading and processing of high-dimensional
-data, which many machine learning libraries lack. This is achieved through efficient
-handling of both sample metadata and feature metadata, enabling users to build modular
-and high-performance data processing pipelines.
+BioSets loads and processes high-dimensional data, including sample metadata and
+feature metadata, to support modular data processing pipelines.
 
 ## Features
 
-🧬 **Loading sample metadata and feature metadata**: BioSets provides the unique
-capability to load both sample metadata and feature metadata, facilitating modular
-downstream analysis pipelines. This ensures that users can easily manage and access
-detailed information about each sample and feature, improving the interpretability and
-flexibility of their datasets.
+🧬 **Loading sample metadata and feature metadata**: BioSets loads both sample
+metadata and feature metadata.
 
-🧬 **Support for various biological data types**: BioSets includes predefined classes
-for different biological data types, such as genomic variants, gene expression data,
-clinical trial data, and OTU tables.
+🧬 **Support for various biological data types**: Includes predefined classes for
+genomic variants, gene expression data, clinical trial data, and OTU tables.
 
-🧬 **Automatic Sample/Batch Detection**: BioSets can automatically detect sample and
-batch information from the loaded data, making it easier to handle batch effects and
-other confounding factors in downstream analyses.
+🧬 **Automatic Sample/Batch Detection**: Automatically detects sample and batch
+information from the loaded data to handle batch effects and confounding factors.
 
-🧬 **Custom dataset creation**: Create tailored datasets with custom features, metadata,
-and labels.
+🧬 **Custom dataset creation**: Create custom datasets with specific features,
+metadata, and labels.
 
-🧬 **Integration with datasets library**: BioSets builds on the functionality provided
-by the `datasets` library. For general-purpose dataset operations, users can refer to
-the `datasets` library documentation. If you do not use any of the
-`biosets.list_experiments()`, then it will simply act like Huggingface's `datasets`
-library.
+🧬 **Integration with datasets library**: BioSets builds on the `datasets` library's
+functionality. Without `biosets.list_experiments()`, it acts like Huggingface's
+`datasets` library.
 
 ## Getting Started
 
-To use the BioSets library, you'll need to clone the repository and install the
-necessary dependencies. After setting up your environment, you can create your own
-dataset by following the steps below.
+To use the BioSets library, clone the repository and install the necessary
+dependencies. After setting up your environment, create your dataset by following the
+steps below.
 
 ### Installation
 
-You can install BioSets using pip:
+Install BioSets using pip:
 
 ```bash
 pip install biosets
@@ -67,8 +56,7 @@ To create a dataset for biological research using BioSets, follow these steps:
 BioSets can process (e.g., directory of relevant files).
 
 2. **Load Your Data with Metadata**: Use `load_dataset()` to load your data along with
-sample metadata and feature metadata. This modular approach allows for more detailed
-downstream analyses:
+sample metadata and feature metadata:
 
    ```python
    from biosets import load_dataset
@@ -82,8 +70,8 @@ downstream analyses:
    ```
 
 3. **Utilize Metadata for Analysis**: The loaded dataset allows you to access and use
-metadata easily in downstream analyses. For example, you can handle abundance data
-differently based on its type:
+metadata in downstream analyses. For example, you can handle abundance data differently
+based on its type:
 
    ```python
    from biosets.features import Abundance
@@ -92,17 +80,12 @@ differently based on its type:
            print(f"Processing abundance feature: {k}")
    ```
 
-   This feature is particularly useful for modular pipeline development, where certain
-   analyses or transformations are applied only to specific types of data, such as
-   abundance measurements.
-
 ### Dataset Examples
 
 #### Loading Specific Experiments
 
-With BioSets, users are encouraged to use specific experiment types for loading data,
-such as `otu`, `maldi`, `rna`, or `snp` to ensure the appropriate configuration is
-applied:
+Use specific experiment types for loading data, such as `otu`, `maldi`, `rna`, or `snp`
+to ensure the appropriate configuration is applied:
 
 🧬 **OTU Data**
 
@@ -124,21 +107,21 @@ applied:
 
 ### Next Steps
 
-After creating your biological dataset, you can leverage BioSets for downstream tasks
-such as feature extraction, model training, or data visualization.
+After creating your biological dataset, you can use BioSets for feature extraction, model
+training, or data visualization.
 
-For more advanced usage for loading and processing biological datasets, refer to the
-[dataset loading documentation](src/biosets/DATASET_LOADING.md). For building custom
-datasets, refer to the [custom dataset creation documentation](src/biosets/CUSTOM_DATASETS.md).
+For more advanced usage, refer to the [dataset loading
+documentation](src/biosets/DATASET_LOADING.md). For building custom datasets, refer to
+the [custom dataset creation documentation](src/biosets/CUSTOM_DATASETS.md).
 
-For any additional information not covered in the BioSets documentation,
-please refer to the [datasets library documentation](https://huggingface.co/docs/datasets/).
+For any additional information, refer to the [datasets library
+documentation](https://huggingface.co/docs/datasets/).
 
 ## Contributing
 
-We welcome contributions to the BioSets project! If you have suggestions for
-improvements or new features, feel free to open an issue or submit a pull request. For
-major changes, please open an issue first to discuss what you would like to change.
+Contributions are welcome! If you have suggestions for improvements or new features,
+open an issue or submit a pull request. For major changes, open an issue first to
+discuss it.
 
 ## License
 
