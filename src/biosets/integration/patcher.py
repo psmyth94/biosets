@@ -11,7 +11,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeAlias, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import filelock
 
@@ -724,7 +724,7 @@ class Patcher:
                         if name.asname is not None:
                             asname_map[name.asname] = name.name
 
-        def is_from_package(member: TypeAlias, module: ModuleType, package_name):
+        def is_from_package(member, module: ModuleType, package_name):
             """Check if the member is from the same package as the module."""
             origin = inspect.getmodule(member)
             return origin is None or origin.__name__.startswith(package_name)
