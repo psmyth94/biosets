@@ -124,14 +124,12 @@ def ds_init_kwargs(kwargs: dict):
 
 def np_array_kwargs(kwargs: dict):
     dtype = kwargs.get("dtype", None)
-    copy = kwargs.get("copy", False)
     order = kwargs.get("order", "K")
     subok = kwargs.get("subok", True)
     ndmin = kwargs.get("ndmin", 0)
     like = kwargs.get("like", None)
     return {
         "dtype": dtype,
-        "copy": copy,
         "order": order,
         "subok": subok,
         "ndmin": ndmin,
