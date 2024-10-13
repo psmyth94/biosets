@@ -122,16 +122,16 @@ def ds_init_kwargs(kwargs: dict):
     return get_kwargs(kwargs, sys.modules["biosets"].Dataset.__init__)
 
 
-def np_array_kwargs(kwargs: dict):
+def np_asarray_kwargs(kwargs: dict):
     dtype = kwargs.get("dtype", None)
-    order = kwargs.get("order", "K")
-    subok = kwargs.get("subok", True)
-    ndmin = kwargs.get("ndmin", 0)
+    order = kwargs.get("order", None)
+    device = kwargs.get("device", None)
+    copy = kwargs.get("copy", None)
     like = kwargs.get("like", None)
     return {
         "dtype": dtype,
         "order": order,
-        "subok": subok,
-        "ndmin": ndmin,
+        "device": device,
+        "copy": copy,
         "like": like,
     }
