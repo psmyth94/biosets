@@ -88,8 +88,8 @@ class ArrowConverter(BaseDataConverter):
                 or (isinstance(x, float) and np.isnan(x))
                 for x in array
             ):
-                return np.array(array, copy=False, dtype=object)
-        return np.array(array, copy=False)
+                return np.asarray(array, dtype=object)
+        return np.asarray(array)
 
     def to_pandas(self, X: Union[pa.Array, pa.ChunkedArray, pa.Table], **kwargs):
         if isinstance(X, (pa.ChunkedArray, pa.Array)):
