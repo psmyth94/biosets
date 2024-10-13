@@ -1,7 +1,7 @@
 import inspect
 import sys
-import numpy as np
 
+import numpy as np
 
 from biosets.utils import logging
 
@@ -124,6 +124,17 @@ def ds_init_kwargs(kwargs: dict):
     return get_kwargs(kwargs, sys.modules["biosets"].Dataset.__init__)
 
 
+def np_array_kwargs(kwargs: dict):
+    return {
+        "dtype": kwargs.get("dtype", None),
+        "copy": kwargs.get("copy", False),
+        "order": kwargs.get("order", "K"),
+        "subok": kwargs.get("subok", True),
+        "ndmin": kwargs.get("ndmin", 0),
+        "like": kwargs.get("like", None),
+    }
+
+
 def np_asarray_kwargs(kwargs: dict):
     if np.lib.NumpyVersion(np.__version__) >= "2.0.0b1":
         return {
@@ -136,9 +147,6 @@ def np_asarray_kwargs(kwargs: dict):
     else:
         return {
             "dtype": kwargs.get("dtype", None),
-            "copy": kwargs.get("copy", False),
-            "order": kwargs.get("order", "K"),
-            "subok": kwargs.get("subok", True),
-            "ndmin": kwargs.get("ndmin", 0),
+            "order": kwargs.get("order", None),
             "like": kwargs.get("like", None),
         }

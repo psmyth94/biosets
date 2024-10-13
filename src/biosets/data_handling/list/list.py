@@ -8,6 +8,7 @@ from biosets.utils import logging
 from biosets.utils.import_util import requires_backends
 from biosets.utils.inspect import (
     get_kwargs,
+    np_array_kwargs,
     np_asarray_kwargs,
     pa_table_from_pandas_kwargs,
 )
@@ -51,7 +52,9 @@ class ListConverter(BaseDataConverter):
         return [dict(zip(names, x)) for x in X]
 
     def to_numpy(self, X, **kwargs):
-        return np.asarray(X, **np_asarray_kwargs(kwargs))
+        if np.lib.NumpyVersion(np.__version__) >= "2.0.0b1":
+            return np.asarray(self.to_list(X, **kwargs), **np_asarray_kwargs(kwargs))
+        return np.array(self.to_list(X, **kwargs), **np_array_kwargs(kwargs))
 
     def to_pandas(self, X, **kwargs):
         if self._is_fatten(X):
