@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
-from biosets import Dataset, config
+from biosets import Dataset
 from biosets.data_handling import (
     DataHandler,
 )

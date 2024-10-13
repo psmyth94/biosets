@@ -1,14 +1,11 @@
 import copy
-import inspect
 import os
 from functools import wraps
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, List, Union
 
 import pyarrow as pa
-from datasets import Dataset
-from datasets import DatasetInfo, Features, NamedSplit
+from datasets import Dataset, Features
 from datasets.arrow_dataset import update_metadata_with_features
-from datasets.table import InMemoryTable, Table
 
 from biosets.features import (
     METADATA_FEATURE_TYPES,
@@ -37,53 +34,6 @@ def with_patcher(func):
 
 
 class Bioset(Dataset):
-    def __init__(
-        self,
-        arrow_table: Table,
-        info: Optional[DatasetInfo] = None,
-        split: Optional[NamedSplit] = None,
-        indices_table: Optional[Table] = None,
-        fingerprint: Optional[str] = None,
-        replays: Optional[list] = None,
-    ):
-        super().__init__(
-            arrow_table=arrow_table,
-            info=info,
-            split=split,
-            indices_table=indices_table,
-            fingerprint=fingerprint,
-        )
-        if replays:
-            self = self.apply_replays(replays)
-        self.replays = None
-        files = [v["filename"] for v in self.cache_files] if self.cache_files else []
-        if files:
-            file_args = [
-                (
-                    self._fingerprint,
-                    None,
-                    "from_file",
-                    (file,),
-                    {
-                        "split": self.split,
-                        "in_memory": isinstance(self._data, InMemoryTable),
-                    },
-                )
-                for file in files
-            ]
-            if len(file_args) == 1:
-                self.replays = file_args
-            else:
-                self.replays = [
-                    (
-                        self._fingerprint,
-                        None,
-                        "concatenate_replays",
-                        (file_args,),
-                        {},
-                    )
-                ]
-
     @with_patcher
     def cleanup_cache_files(self) -> int:
         EXT_TO_DELETE = [".arrow", ".json", ".joblib", ".png", ".jpeg", ".jpg"]
@@ -110,53 +60,6 @@ class Bioset(Dataset):
             logger.info(f"Removing {file_path}")
             os.remove(file_path)
         return len(files_to_remove)
-
-    @with_patcher
-    def apply_replays(self, replays: list):
-        for replay in replays:
-            fingerprint, entity_path, method_name, args, kwargs = replay
-            if entity_path is not None:
-                entity = load_module_or_class(entity_path)
-                method = getattr(entity, method_name)
-                self = method(self, *args, **kwargs)
-            else:
-                method = getattr(self, method_name)
-                self = method(*args, **kwargs)
-            self._fingerprint = fingerprint
-        return self
-
-    @classmethod
-    @with_patcher
-    def from_replays(cls, replays):
-        from_methods = [
-            m[0] for m in inspect.getmembers(cls, predicate=inspect.ismethod)
-        ]
-        if replays[0][2] not in from_methods:
-            raise ValueError(
-                f"The first replay must be a classmethod of {cls.__name__}."
-            )
-
-        replay = replays[0]
-        fingerprint, module, method_name, args, kwargs = replay
-        if module is not None:
-            raise ValueError(
-                f"The first replay must be a classmethod of class `{cls.__name__}`."
-            )
-
-        method = getattr(cls, method_name)
-        self: "Bioset" = method(*args, **kwargs)
-        self._fingerprint = fingerprint
-        self = self.apply_replays(replays[1:])
-        return self
-
-    @classmethod
-    @with_patcher
-    def concatenate_replays(cls, replays: list, axis=0):
-        from biosets.load import concatenate_datasets
-
-        return concatenate_datasets(
-            [cls.from_replays([replay]) for replay in replays], axis=axis
-        )
 
     @wraps(Dataset.train_test_split)
     @with_patcher

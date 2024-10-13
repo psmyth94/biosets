@@ -14,7 +14,6 @@ from datasets.packaged_modules.csv.csv import CsvConfig as HfCsvConfig
 from biosets.utils import get_kwargs, logging
 from biosets.utils.import_util import is_polars_available
 
-from ... import config
 
 if TYPE_CHECKING:
     from polars.type_aliases import CsvEncoding
