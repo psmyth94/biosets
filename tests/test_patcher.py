@@ -293,7 +293,9 @@ class TestPatcher(unittest.TestCase):
 
     def test_mock_patcher_with_no_cache(self):
         # Test the MockPatcher when caching is disabled
-        with patch("biosets.integration.patcher.is_caching_enabled", return_value=False):
+        with patch(
+            "biosets.integration.patcher.is_caching_enabled", return_value=False
+        ):
             mock_patcher_no_cache = MockPatcher(
                 target_module=self.target_module,
                 source_module=self.source_module,

@@ -323,7 +323,9 @@ class PatcherConfig:
                         if cache_files is None:
                             cache_files = defaultdict(dict)
                         cache_files[patch_target_name][name] = patches_file
-                    no_patches_file = f"{cache_file}/{biosets.config.NO_PATCHES_FILENAME}"
+                    no_patches_file = (
+                        f"{cache_file}/{biosets.config.NO_PATCHES_FILENAME}"
+                    )
                     if os.path.exists(no_patches_file):
                         if cache_files is None:
                             cache_files = defaultdict(dict)
@@ -378,7 +380,9 @@ class PatcherConfig:
                 with filelock.FileLock(
                     create_lock_path(
                         self._cache_dir_root,
-                        posixpath.join(self._output_dir, biosets.config.PATCHES_FILENAME),
+                        posixpath.join(
+                            self._output_dir, biosets.config.PATCHES_FILENAME
+                        ),
                     )
                 ):
                     os.remove(fp)

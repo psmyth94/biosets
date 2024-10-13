@@ -31,13 +31,17 @@ def set_test_cache_config(tmp_path_factory, monkeypatch):
     test_datasets_cache = test_cache_home / "datasets"
     test_modules_cache = test_cache_home / "modules"
     monkeypatch.setattr("biosets.config.BIOSETS_CACHE_HOME", Path(test_cache_home))
-    monkeypatch.setattr("biosets.config.BIOSETS_PATCHES_CACHE", Path(test_patches_cache))
+    monkeypatch.setattr(
+        "biosets.config.BIOSETS_PATCHES_CACHE", Path(test_patches_cache)
+    )
     monkeypatch.setattr("datasets.config.HF_DATASETS_CACHE", str(test_datasets_cache))
     monkeypatch.setattr(
         "biosets.config.BIOSETS_DATASETS_CACHE",
         str(test_datasets_cache),
     )
-    monkeypatch.setattr("biosets.config.BIOSETS_DATASETS_CACHE", Path(test_datasets_cache))
+    monkeypatch.setattr(
+        "biosets.config.BIOSETS_DATASETS_CACHE", Path(test_datasets_cache)
+    )
     monkeypatch.setattr("datasets.config.HF_MODULES_CACHE", str(test_modules_cache))
     test_downloaded_datasets_path = test_datasets_cache / "downloads"
     monkeypatch.setattr(
