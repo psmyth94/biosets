@@ -66,9 +66,7 @@ class DaskConverter(BaseDataConverter):
     def to_dataset(self, X: "dd.DataFrame", **kwargs):
         from biosets import Bioset
 
-        return Bioset.from_pandas(
-            X.compute(), **get_kwargs(kwargs, Bioset.from_pandas)
-        )
+        return Bioset.from_pandas(X.compute(), **get_kwargs(kwargs, Bioset.from_pandas))
 
     def to_iterabledataset(self, X: "dd.DataFrame", **kwargs):
         def gen(**gen_kwargs):

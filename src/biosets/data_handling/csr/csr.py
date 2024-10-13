@@ -73,9 +73,7 @@ class CSRConverter(BaseDataConverter):
     def to_dataset(self, X: "sp.csr_matrix", **kwargs):
         from biosets import Bioset
 
-        return Bioset(
-            self.to_arrow(X, **kwargs), **get_kwargs(kwargs, Bioset.__init__)
-        )
+        return Bioset(self.to_arrow(X, **kwargs), **get_kwargs(kwargs, Bioset.__init__))
 
     def to_iterabledataset(self, X: "sp.csr_matrix", **kwargs):
         def gen(**gen_kwargs):

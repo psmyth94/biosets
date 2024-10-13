@@ -79,9 +79,7 @@ class NumPyConverter(BaseDataConverter):
     def to_dataset(self, X: np.ndarray, **kwargs):
         from biosets import Bioset
 
-        return Bioset(
-            self.to_arrow(X, **kwargs), **get_kwargs(kwargs, Bioset.__init__)
-        )
+        return Bioset(self.to_arrow(X, **kwargs), **get_kwargs(kwargs, Bioset.__init__))
 
     def to_iterabledataset(self, X: np.ndarray, **kwargs):
         def gen(**gen_kwargs):
