@@ -93,8 +93,8 @@ def concatenate_datasets(dsets, info=None, split=None, axis=0):
 def load_from_disk(
     file_path,
     fs="deprecated",
-    keep_in_memory: Optional[dict | None] = None,
-    storage_options: Optional[dict | None] = None,
+    keep_in_memory: Optional[dict] = None,
+    storage_options: Optional[dict] = None,
 ):
     from biosets.integration import DatasetsPatcher
 
