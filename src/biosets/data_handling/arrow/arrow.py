@@ -88,8 +88,13 @@ class ArrowConverter(BaseDataConverter):
                 or (isinstance(x, float) and np.isnan(x))
                 for x in array
             ):
-                return np.asarray(array, dtype=object)
-        return np.asarray(array)
+                if np.lib.NumpyVersion(np.__version__) >= "2.0.0b1":
+                    return np.asarray(array, dtype=object)
+                return np.array(array, copy=False, dtype=object)
+        if np.lib.NumpyVersion(np.__version__) >= "2.0.0b1":
+            return np.asarray(array)
+        else:
+            return np.array(array, copy=False)
 
     def to_pandas(self, X: Union[pa.Array, pa.ChunkedArray, pa.Table], **kwargs):
         if isinstance(X, (pa.ChunkedArray, pa.Array)):
