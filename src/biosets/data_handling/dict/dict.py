@@ -60,7 +60,7 @@ class DictConverter(BaseDataConverter):
         return [{k: v[i] for k, v in X.items()} for i in range(len(first_entry))]
 
     def to_numpy(self, X: Dict[str, list], **kwargs):
-        return np.asarray(self.to_list(X, **kwargs), **np_asarray_kwargs(kwargs))
+        return np.asarray(self.to_list(X, **kwargs), **get_kwargs(kwargs, np.asarray))
 
     def to_pandas(self, X: Dict[str, list], **kwargs):
         return pd.DataFrame(X, **get_kwargs(kwargs, pd.DataFrame.__init__))

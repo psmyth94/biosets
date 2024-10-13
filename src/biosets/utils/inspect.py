@@ -1,7 +1,9 @@
 import inspect
 import sys
+import version
 
 from biosets.utils import logging
+from biosets.utils.import_util import _numpy_version
 
 logger = logging.get_logger(__name__)
 
@@ -123,15 +125,17 @@ def ds_init_kwargs(kwargs: dict):
 
 
 def np_asarray_kwargs(kwargs: dict):
-    dtype = kwargs.get("dtype", None)
-    order = kwargs.get("order", None)
-    device = kwargs.get("device", None)
-    copy = kwargs.get("copy", None)
-    like = kwargs.get("like", None)
-    return {
-        "dtype": dtype,
-        "order": order,
-        "device": device,
-        "copy": copy,
-        "like": like,
-    }
+    if version.parse(_numpy_version) < version.parse("2.0.0"):
+        return {
+            "dtype": kwargs.get("dtype", None),
+            "order": kwargs.get("order", None),
+            "like": kwargs.get("like", None),
+        }
+    else:
+        return {
+            "dtype": kwargs.get("dtype", None),
+            "order": kwargs.get("order", None),
+            "device": kwargs.get("device", None),
+            "copy": kwargs.get("copy", None),
+            "like": kwargs.get("like", None),
+        }
