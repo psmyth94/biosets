@@ -51,7 +51,7 @@ class ListConverter(BaseDataConverter):
         return [dict(zip(names, x)) for x in X]
 
     def to_numpy(self, X, **kwargs):
-        return np.array(X, **np_array_kwargs(kwargs))
+        return np.asarray(X, **np_array_kwargs(kwargs))
 
     def to_pandas(self, X, **kwargs):
         if self._is_fatten(X):
@@ -113,19 +113,19 @@ class ListConverter(BaseDataConverter):
     def append_column(self, X, name, column):
         name = self._check_column(X, name, str_only=False, as_list=False, convert=False)
         if self._is_fatten(X):
-            X = np.array(X).reshape(-1, 1).tolist()
+            X = np.asarray(X).reshape(-1, 1).tolist()
         if self._is_fatten(column):
-            column = np.array(column).reshape(-1, 1).tolist()
-        return np.concatenate((np.array(X), np.array(column)), axis=1).tolist()
+            column = np.asarray(column).reshape(-1, 1).tolist()
+        return np.concatenate((np.asarray(X), np.asarray(column)), axis=1).tolist()
 
     def add_column(self, X, index, name, column):
         name = self._check_column(X, name, str_only=False, as_list=False, convert=False)
         if self._is_fatten(X):
-            X = np.array(X).reshape(-1, 1).tolist()
+            X = np.asarray(X).reshape(-1, 1).tolist()
 
         if not self._is_fatten(column):
-            column = np.array(column).flatten()
-        return np.insert(np.array(X), index, column, axis=1).tolist()
+            column = np.asarray(column).flatten()
+        return np.insert(np.asarray(X), index, column, axis=1).tolist()
 
     def rename_column(self, X, name, new_name):
         logger.warning_once(
@@ -145,12 +145,12 @@ class ListConverter(BaseDataConverter):
         if not columns:
             return []
 
-        columns = np.array(
+        columns = np.asarray(
             self._check_column(X, columns, str_only=False, as_list=True, convert=False)
         )
         if self._is_fatten(X):
-            X = np.array(X).reshape(-1, 1).tolist()
-        return np.array(X)[:, columns].tolist()
+            X = np.asarray(X).reshape(-1, 1).tolist()
+        return np.asarray(X)[:, columns].tolist()
 
     def select_column(self, X, column, **kwargs):
         column = self._check_column(
@@ -158,17 +158,17 @@ class ListConverter(BaseDataConverter):
         )
         if self._is_fatten(X) and column == 0:
             return X
-        return np.array(X)[:, column].flatten().tolist()
+        return np.asarray(X)[:, column].flatten().tolist()
 
     def set_column(self, X, column, values):
         column = self._check_column(
             X, column, str_only=False, as_list=False, convert=False
         )
-        X = np.array(X)
+        X = np.asarray(X)
         if self._is_fatten(X):
-            return np.array(values).flatten().tolist()
+            return np.asarray(values).flatten().tolist()
         if not self._is_fatten(values):
-            values = np.array(values).flatten()
+            values = np.asarray(values).flatten()
         X[:, column] = values
         return X.tolist()
 
@@ -189,7 +189,7 @@ class ListConverter(BaseDataConverter):
         return self.set_column(X, column, [mapping.get(x, x) for x in X])
 
     def argmax(self, X, axis=0):
-        X = np.array(X)
+        X = np.asarray(X)
         return np.argmax(X, axis=axis).tolist()
 
     def nunique(self, X, column=None):
@@ -214,7 +214,7 @@ class ListConverter(BaseDataConverter):
     def to_frame(self, X, name=None):
         if not self._is_fatten(X):
             return X
-        return np.array(X).reshape(-1, 1).tolist()
+        return np.asarray(X).reshape(-1, 1).tolist()
 
     def iter(self, X, batch_size, drop_last_batch=False):
         total_length = self.get_shape(X)[0]
@@ -252,7 +252,7 @@ class ListConverter(BaseDataConverter):
         }
         if self._is_fatten(X):
             return {0: full_name_mapper.get(type(X[0]).__name__, type(X[0]).__name__)}
-        X = np.array(X)
+        X = np.asarray(X)
         x_dims = X.shape
         dtype = X.dtype
         if pd.api.types.is_string_dtype(dtype):

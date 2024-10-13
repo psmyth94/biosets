@@ -104,7 +104,7 @@ class CSRConverter(BaseDataConverter):
 
         if not isinstance(column, sp.csr_matrix):
             if not isinstance(column, np.ndarray):
-                column = np.array(column)
+                column = np.asarray(column)
             if column.ndim == 1:
                 column = column[:, None]
             if column.shape[0] != X.shape[0]:
@@ -123,7 +123,7 @@ class CSRConverter(BaseDataConverter):
 
         if not isinstance(column, sp.csr_matrix):
             if not isinstance(column, np.ndarray):
-                column = np.array(column)
+                column = np.asarray(column)
             if column.ndim == 1:
                 column = column[:, None]
             if column.shape[0] != X.shape[0]:
@@ -160,7 +160,7 @@ class CSRConverter(BaseDataConverter):
                 raise ValueError("Column names are not supported for NumPy arrays")
             if limit and len(columns) > limit:
                 raise ValueError("Too many columns selected.")
-            columns = np.array(columns)
+            columns = np.asarray(columns)
         if isinstance(columns, (str, np.str_)):
             raise ValueError("Column names are not supported for NumPy arrays")
         return columns
@@ -199,12 +199,12 @@ class CSRConverter(BaseDataConverter):
         arr = self.to_numpy(X)
         if column is not None:
             col_data = arr[:, column]
-            new_col_data = np.array([mapping.get(item, item) for item in col_data])
+            new_col_data = np.asarray([mapping.get(item, item) for item in col_data])
             arr[:, column] = new_col_data
         else:
             for i in range(arr.shape[1]):
                 col_data = arr[:, i]
-                new_col_data = np.array([mapping.get(item, item) for item in col_data])
+                new_col_data = np.asarray([mapping.get(item, item) for item in col_data])
                 arr[:, i] = new_col_data
         return sp.csr_matrix(arr)
 
@@ -281,7 +281,7 @@ class CSRConverter(BaseDataConverter):
         import scipy.sparse as sp
 
         if not isinstance(value, np.ndarray):
-            value = np.array(value)
+            value = np.asarray(value)
         if value.ndim == 1:
             value = value[:, None]
         if value.shape[0] != X.shape[0]:

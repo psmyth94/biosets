@@ -28,7 +28,7 @@ class RowDictConverter(DictConverter):
         return [X]
 
     def to_numpy(self, X: Dict[str, Any], **kwargs):
-        return np.array([X], **np_array_kwargs(kwargs))
+        return np.asarray([X], **np_array_kwargs(kwargs))
 
     def to_pandas(self, X: Dict[str, Any], **kwargs):
         return pd.DataFrame([X], **get_kwargs(kwargs, pd.DataFrame.__init__))

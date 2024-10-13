@@ -5,14 +5,13 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
-from datasets import IterableDataset
-
 from biosets import Bioset
 from biosets.data_handling import (
     DataHandler,
 )
 from biosets.data_handling.data_handling import _FORMAT_TO_CONVERTER
 from biosets.utils.import_util import is_polars_available
+from datasets import IterableDataset
 
 pl = None
 if is_polars_available():
@@ -27,7 +26,7 @@ pytestmark = pytest.mark.unit
 @pytest.mark.parametrize("format", _FORMAT_TO_CONVERTER.keys())
 def test_numpy_converter(format):
     try:
-        assert DataHandler.to_format(np.array([1, 2, 3]), format) is not None
+        assert DataHandler.to_format(np.asarray([1, 2, 3]), format) is not None
     except NotImplementedError:
         pass
 

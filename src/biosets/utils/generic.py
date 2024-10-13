@@ -15,19 +15,19 @@
 Generic utilities
 """
 
-import inspect
-import tempfile
 import contextlib
-import shutil
+import inspect
 import os
+import shutil
 import stat
-from pathlib import Path
+import tempfile
 from collections import OrderedDict, UserDict
 from collections.abc import MutableMapping
 from contextlib import ExitStack, contextmanager
 from dataclasses import fields, is_dataclass
 from enum import Enum
-from typing import Any, ContextManager, List, Tuple, Union, Optional, Generator
+from pathlib import Path
+from typing import Any, ContextManager, Generator, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -237,7 +237,7 @@ def to_numpy(obj):
     if isinstance(obj, (dict, UserDict)):
         return {k: to_numpy(v) for k, v in obj.items()}
     elif isinstance(obj, (list, tuple)):
-        return np.array(obj)
+        return np.asarray(obj)
 
     # This gives us a smart order to test the frameworks with the corresponding tests.
     framework_to_test_func = _get_frameworks_and_test_func(obj)

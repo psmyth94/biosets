@@ -113,7 +113,7 @@ class NumPyConverter(BaseDataConverter):
                 raise ValueError("Column names are not supported for NumPy arrays")
             if not as_list and len(columns) > 1:
                 raise ValueError("Only one column can be selected")
-            columns = np.array(columns)
+            columns = np.asarray(columns)
         if isinstance(columns, (str, np.str_)):
             raise ValueError("Column names are not supported for NumPy arrays")
         return columns
@@ -133,7 +133,7 @@ class NumPyConverter(BaseDataConverter):
         return np.hstack([X[:, :index], column, X[:, index:]])
 
     def select_rows(self, X: np.ndarray, indices, **kwargs):
-        return X[np.array(indices)]
+        return X[np.asarray(indices)]
 
     def select_row(self, X: np.ndarray, index):
         return X[index]
@@ -154,7 +154,7 @@ class NumPyConverter(BaseDataConverter):
         if columns is None:
             return X
         if not columns:
-            return np.array([])
+            return np.asarray([])
 
         columns = self._check_column(columns)
         if columns is None:
@@ -207,8 +207,8 @@ class NumPyConverter(BaseDataConverter):
 
     def replace(self, X: np.ndarray, column=None, mapping={}):
         if len(X.shape) == 1:
-            return np.array([mapping.get(x, x) for x in X])
-        return np.array([mapping.get(x, x) for x in self.select_column(X, column)])
+            return np.asarray([mapping.get(x, x) for x in X])
+        return np.asarray([mapping.get(x, x) for x in self.select_column(X, column)])
 
     def argmax(self, X: np.ndarray, axis=0):
         if len(X.shape) == 1:

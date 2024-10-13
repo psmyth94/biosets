@@ -34,7 +34,7 @@ class DictsConverter(BaseDataConverter):
         return X
 
     def to_numpy(self, X: List[Dict[str, Any]], **kwargs):
-        return np.array(self.to_list(X, **kwargs), **np_array_kwargs(kwargs))
+        return np.asarray(self.to_list(X, **kwargs), **np_array_kwargs(kwargs))
 
     def to_pandas(self, X: List[Dict[str, Any]], **kwargs):
         return pd.DataFrame(X, **get_kwargs(kwargs, pd.DataFrame.__init__))
