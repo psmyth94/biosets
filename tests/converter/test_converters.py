@@ -5,14 +5,14 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
-from biosets import Dataset
+from datasets import IterableDataset
+
+from biosets import Bioset
 from biosets.data_handling import (
     DataHandler,
 )
 from biosets.data_handling.data_handling import _FORMAT_TO_CONVERTER
 from biosets.utils.import_util import is_polars_available
-
-from datasets import IterableDataset
 
 pl = None
 if is_polars_available():
@@ -82,7 +82,7 @@ def test_dataset_converter(format):
             kwargs["path"] = Path(tempfile.mkdtemp()) / "test_dataset_converter.csv"
 
         assert (
-            DataHandler.to_format(Dataset.from_dict({"a": [1]}), format, **kwargs)
+            DataHandler.to_format(Bioset.from_dict({"a": [1]}), format, **kwargs)
             is not None
         )
     except NotImplementedError:
