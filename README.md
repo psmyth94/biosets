@@ -29,8 +29,8 @@ information from the loaded data to handle batch effects and confounding factors
 metadata, and labels.
 
 🧬 **Integration with datasets library**: BioSets builds on the `datasets` library's
-functionality. Note that if `path` is not a value found in `biosets.list_experiments()`,
-it acts like Huggingface's `datasets` library.
+functionality. Note that if `path` is not a value found in
+`biosets.list_experiment_types()`, it acts like Huggingface's `datasets` library.
 
 ## Getting Started
 

@@ -25,3 +25,4 @@ from .arrow_dataset import (
     decode,
 )
 from .load import load_dataset, concatenate_datasets, load_from_disk
+from .packaged_modules import list_experiment_types

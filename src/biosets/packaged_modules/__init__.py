@@ -100,3 +100,15 @@ DATASET_NAME_ALIAS = {
     "rna": "rna-seq",
     "asv": "otu",  # we are not treating ASV as a separate dataset type currently
 }
+
+
+def list_experiment_types(experiment_type=None):
+    if experiment_type is not None:
+        if experiment_type in DATASET_NAME_TO_OMIC_TYPE:
+            return list(DATASET_NAME_TO_OMIC_TYPE[experiment_type])
+        else:
+            raise ValueError(
+                f"Invalid experiment type: {experiment_type}. "
+                f"Valid experiment types are: {list(DATASET_NAME_TO_OMIC_TYPE.keys())}"
+            )
+    return sorted(list(DATASET_NAME_TO_OMIC_TYPE.keys()))
