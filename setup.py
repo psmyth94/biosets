@@ -6,13 +6,19 @@ REQUIRED_PKGS = [
 
 QUALITY_REQUIRE = ["ruff>=0.1.5"]
 
-SPARSE_REQUIRE = ["scipy"]
 DOCS_REQUIRE = [
     # Might need to add doc-builder and some specific deps in the future
     "s3fs",
 ]
 
-TESTS_REQUIRE = ["pytest", "pytest-timeout", "pytest-xdist"]
+TESTS_REQUIRE = [
+    "pytest",
+    "pytest-timeout",
+    "pytest-xdist",
+    "scipy",
+    "polars>=0.20.5",
+    "timezones>=0.10.2",
+]
 
 EXTRAS_REQUIRE = {
     "polars": ["polars>=0.20.5", "timezones>=0.10.2"],
@@ -26,8 +32,8 @@ EXTRAS_REQUIRE = {
     "torch": ["torch"],
     "jax": ["jax>=0.3.14", "jaxlib>=0.3.14"],
     "s3": ["s3fs"],
-    "scipy": SPARSE_REQUIRE,
-    "test": QUALITY_REQUIRE + TESTS_REQUIRE + DOCS_REQUIRE + SPARSE_REQUIRE,
+    "scipy": ["scipy"],
+    "test": QUALITY_REQUIRE + TESTS_REQUIRE + DOCS_REQUIRE,
     "quality": QUALITY_REQUIRE,
     "docs": DOCS_REQUIRE,
 }
