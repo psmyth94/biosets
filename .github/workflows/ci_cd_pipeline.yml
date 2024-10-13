@@ -1,0 +1,71 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - "ci-*"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check_code_quality:
+    name: Check Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.10
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[quality]
+      - name: Run Ruff code quality checks
+        run: |
+          ruff check tests src setup.py --output-format=github
+          ruff format --check tests src setup.py
+
+  tests:
+    needs: check_code_quality
+    strategy:
+      matrix:
+        test: [unit]
+        os: [ubuntu-latest, windows-latest]
+        python-version: [3.10]
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.test == 'integration' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.10
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv --upgrade
+          uv pip install --system "biosets[test] @ ."
+
+
+      - name: Run Tests
+        run: |
+          mkdir -p reports/${{ matrix.test }}_tests
+          python3 -m pytest -m ${{ matrix.test }} -n 2 --dist loadfile -sv ./tests/ --junitxml=reports/${{ matrix.test }}_tests/results.xml
+
+      - name: Upload Unit Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.test }}-test-reports
+          path: reports/${{ matrix.test }}_tests/results.xml
+
