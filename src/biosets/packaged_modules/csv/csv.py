@@ -2,7 +2,7 @@ import copy
 import inspect
 import itertools
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Dict, Mapping, Optional, Sequence, Union
 
 import datasets
 import pandas as pd
@@ -13,7 +13,6 @@ from datasets.packaged_modules.csv.csv import CsvConfig as HfCsvConfig
 
 from biosets.utils import get_kwargs, logging
 from biosets.utils.import_util import is_polars_available
-
 
 if TYPE_CHECKING:
     from polars.type_aliases import CsvEncoding
@@ -35,7 +34,7 @@ class CsvConfig(datasets.BuilderConfig):
     comment_prefix: Optional[str] = None
     quote_char: str = '"'
     skip_rows: int = 0
-    null_values: Optional[Union[str, Sequence[str], dict[str, str]]] = None
+    null_values: Optional[Union[str, Sequence[str], Dict[str, str]]] = None
     missing_utf8_is_empty_string: bool = False
     ignore_errors: bool = False
     try_parse_dates: bool = False
