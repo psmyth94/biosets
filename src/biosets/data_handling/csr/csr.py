@@ -204,7 +204,9 @@ class CSRConverter(BaseDataConverter):
         else:
             for i in range(arr.shape[1]):
                 col_data = arr[:, i]
-                new_col_data = np.asarray([mapping.get(item, item) for item in col_data])
+                new_col_data = np.asarray(
+                    [mapping.get(item, item) for item in col_data]
+                )
                 arr[:, i] = new_col_data
         return sp.csr_matrix(arr)
 
