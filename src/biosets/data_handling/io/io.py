@@ -67,12 +67,12 @@ class IOConverter(BaseDataConverter):
         )
 
     def to_dataset(self, path, **kwargs):
-        from biosets import Dataset
+        from biosets import Bioset
 
         tbl = self.to_arrow(path, **kwargs)
         features = Features.from_arrow_schema(tbl.schema)
         info = DatasetInfo(features=features)
-        return Dataset(tbl, info=info)
+        return Bioset(tbl, info=info)
 
     def to_iterabledataset(self, path, **kwargs):
         if isinstance(path, str):

@@ -108,13 +108,13 @@ class IterableDatasetConverter(DatasetConverter):
         return NotImplemented
 
     def to_dataset(self, X: IterableDataset, **kwargs):
-        from biosets import Dataset
+        from biosets import Bioset
 
         def gen(**gen_kwargs):
             for row in X:
                 yield row
 
-        return Dataset.from_generator(gen, **get_kwargs(kwargs, Dataset.from_generator))
+        return Bioset.from_generator(gen, **get_kwargs(kwargs, Bioset.from_generator))
 
     def to_iterabledataset(self, X: IterableDataset, **kwargs):
         return X

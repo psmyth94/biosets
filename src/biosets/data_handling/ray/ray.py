@@ -99,9 +99,9 @@ class RayConverter(ArrowConverter):
         X: Union["ray.data.dataset.MaterializedDataset", "ray.data.dataset.Dataset"],
         **kwargs,
     ):
-        from biosets import Dataset
+        from biosets import Bioset
 
-        return Dataset(self.to_arrow(X, kwargs), **get_kwargs(kwargs, Dataset.__init__))
+        return Bioset(self.to_arrow(X, kwargs), **get_kwargs(kwargs, Bioset.__init__))
 
     def to_iterabledataset(
         self,

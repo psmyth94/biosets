@@ -48,10 +48,10 @@ class RowDictConverter(DictConverter):
         )
 
     def to_dataset(self, X: Dict[str, Any], **kwargs):
-        from biosets import Dataset
+        from biosets import Bioset
 
-        return Dataset.from_pandas(
-            self.to_pandas(X, **kwargs), **get_kwargs(kwargs, Dataset.from_pandas)
+        return Bioset.from_pandas(
+            self.to_pandas(X, **kwargs), **get_kwargs(kwargs, Bioset.from_pandas)
         )
 
     def to_iterabledataset(self, X: Dict[str, Any], **kwargs):

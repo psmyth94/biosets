@@ -41,19 +41,19 @@ class PolarsConverter(BaseDataConverter):
         return X.to_arrow()
 
     def to_dataset(self, X: Union["pl.DataFrame", "pl.Series"], **kwargs):
-        from biosets import Dataset
+        from biosets import Bioset
 
         requires_backends(self.to_dataset, "polars")
         import polars as pl
 
         if isinstance(X, pl.Series):
-            return Dataset.from_pandas(
+            return Bioset.from_pandas(
                 self.to_pandas(X.to_frame(), **kwargs),
-                **get_kwargs(kwargs, Dataset.from_pandas),
+                **get_kwargs(kwargs, Bioset.from_pandas),
             )
 
-        return Dataset.from_pandas(
-            self.to_pandas(X, **kwargs), **get_kwargs(kwargs, Dataset.from_pandas)
+        return Bioset.from_pandas(
+            self.to_pandas(X, **kwargs), **get_kwargs(kwargs, Bioset.from_pandas)
         )
 
     def to_iterabledataset(self, X: Union["pl.DataFrame", "pl.Series"], **kwargs):

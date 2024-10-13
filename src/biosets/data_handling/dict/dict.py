@@ -3,7 +3,7 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 import pyarrow as pa
-from datasets import IterableDataset
+from datasets import Dataset, IterableDataset
 
 from biosets.utils.import_util import requires_backends
 from biosets.utils.inspect import get_kwargs, np_array_kwargs
@@ -75,8 +75,6 @@ class DictConverter(BaseDataConverter):
         return pa.table(X)
 
     def to_dataset(self, X: Dict[str, list], **kwargs):
-        from biosets import Dataset
-
         return Dataset.from_dict(X, **get_kwargs(kwargs, Dataset.from_dict))
 
     def to_iterabledataset(self, X: Dict[str, list], **kwargs):

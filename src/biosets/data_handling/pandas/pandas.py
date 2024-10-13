@@ -57,11 +57,11 @@ class PandasConverter(BaseDataConverter):
         return pa.Table.from_pandas(X, **pa_table_from_pandas_kwargs(kwargs))
 
     def to_dataset(self, X: Union[pd.DataFrame, pd.Series], **kwargs):
-        from biosets import Dataset
+        from biosets import Bioset
 
         if isinstance(X, pd.Series):
             X = X.to_frame(**get_kwargs(kwargs, X.to_frame))
-        return Dataset.from_pandas(X, **get_kwargs(kwargs, Dataset.from_pandas))
+        return Bioset.from_pandas(X, **get_kwargs(kwargs, Bioset.from_pandas))
 
     def to_iterabledataset(self, X: Union[pd.DataFrame, pd.Series], **kwargs):
         def gen(**gen_kwargs):

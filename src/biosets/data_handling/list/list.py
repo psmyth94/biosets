@@ -74,12 +74,12 @@ class ListConverter(BaseDataConverter):
         )
 
     def to_dataset(self, X, **kwargs):
-        from biosets import Dataset
+        from biosets import Bioset
 
         input = self.to_pandas(X, **kwargs)
         if isinstance(input, pd.Series):
             input = input.to_frame()
-        return Dataset.from_pandas(input, **get_kwargs(kwargs, Dataset.from_pandas))
+        return Bioset.from_pandas(input, **get_kwargs(kwargs, Bioset.from_pandas))
 
     def to_iterabledataset(self, X, **kwargs):
         def gen(**gen_kwargs):
