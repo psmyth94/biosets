@@ -1,4 +1,6 @@
 import copy
+import importlib
+import inspect
 import itertools
 import json
 import os
@@ -238,6 +240,10 @@ class BioDataConfig(datasets.BuilderConfig):
                         data_files_dict[split].pop(i)
                         data_files_dict[split].origin_metadata.pop(i)
             self.data_files = data_files_dict
+        else:
+            raise ValueError(
+                "At least one data file must be specified, but got data_files=None"
+            )
 
         if self.metadata_dir and not self.sample_metadata_files:
             base_path = Path(self.metadata_dir or "").expanduser().resolve().as_posix()
@@ -366,7 +372,7 @@ class BioDataConfig(datasets.BuilderConfig):
     def _get_builder_kwargs(self, files):
         if files is None:
             return {}
-        builder_kwargs = None
+        builder_kwargs = {}
         iter_files = files
 
         if isinstance(files, (str, list, tuple)):
@@ -409,7 +415,12 @@ class BioDataConfig(datasets.BuilderConfig):
                         and "sep" not in builder_kwargs["hf_kwargs"]
                     ):
                         builder_kwargs["hf_kwargs"]["sep"] = "\t"
-                builder_kwargs["path"] = config_path
+                module_path = inspect.getfile(_config_class)
+                if "datasets" == _config_class.__module__.split(".")[0]:
+                    builder_kwargs["path"] = config_path
+                else:
+                    builder_kwargs["path"] = module_path
+                    builder_kwargs["trust_remote_code"] = True
                 break
         return builder_kwargs
 
@@ -583,35 +594,16 @@ class BioData(datasets.ArrowBasedBuilder):
         return self
 
     def _convert_feature_metadata_to_dict(self, feature_metadata):
+        if feature_metadata is None:
+            raise ValueError("Feature metadata is not available.")
+        if len(feature_metadata) == 0:
+            raise ValueError("Feature metadata provided is empty.")
+
         _feature_metadata = {}
         features = feature_metadata.column(self.config.feature_column).to_pylist()
         metadata = feature_metadata.drop([self.config.feature_column]).to_pylist()
         _feature_metadata = {str(k): as_py(v) for k, v in zip(features, metadata)}
         return _feature_metadata
-
-    def _check_columns(self, data_features: List[str]):
-        _all_columns = set(data_features)
-        if self.config.sample_column:
-            _all_columns.add(self.config.sample_column)
-        if self.config.batch_column:
-            _all_columns.add(self.config.batch_column)
-        if self.config.target_column:
-            _all_columns.add(self.config.target_column)
-        if self.config.metadata_columns:
-            _all_columns.update(set(self.config.metadata_columns))
-
-        if not self.info.features:
-            self.info.features = self._create_features(data_features)
-
-        column_names = set(self.info.features) - set(_all_columns)
-        if column_names:
-            logger.warning_once(
-                "\nFeatures were provided but the following columns were not found in the data table or metadata table:\n"
-                f"{list(column_names)}\n"
-                "These columns will be ignored.\n"
-            )
-
-        return self
 
     def _split_generators(self, dl_manager):
         """We handle string, list and dicts in datafiles"""
@@ -1216,6 +1208,7 @@ def _infer_column_name(
             return sample_column[0]
 
     possible_col = None
+    which_table = None
     for dcol in patterns:
         # we prioritize the left-most match
         for col in cols:
@@ -1227,17 +1220,47 @@ def _infer_column_name(
                         return col
             elif dcol.lower() in col.lower():
                 possible_col = col
+                which_table = "metadata" if col in metadata_columns else "data"
                 logger.debug(f"Pattern match found: {dcol} -> {col}")
                 if not other_cols or col.lower() in other_cols:
                     return col
     if possible_col and not required:
-        logger.warning_once(
-            f"A possible match for the {default_column_name} column was found: {possible_col}\n"
-            "But it was not found in both the data and metadata tables.\n"
-            "Please add or rename the column in the appropriate table.\n"
-            f"Ignoring the {default_column_name} data.\n"
-        )
-        return None
+        other_possible_col = None
+        other_table = "data" if which_table == "metadata" else "metadata"
+        for dcol in patterns:
+            # we prioritize the left-most match
+            for col in other_cols:
+                if "*" in dcol:
+                    if dcol[:-1].lower() == col.lower():
+                        possible_col = col
+                        logger.debug(
+                            f"Pattern match found with wildcard: {dcol} -> {col}"
+                        )
+                        if not other_cols or col.lower() in other_cols:
+                            return col
+                elif dcol.lower() in col.lower():
+                    other_possible_col = col
+                    logger.debug(f"Pattern match found: {dcol} -> {col}")
+        if other_possible_col:
+            logger.warning_once(
+                f"Two possible matches found for the {default_column_name} column:\n"
+                f"1. {possible_col} in {which_table} table\n"
+                f"2. {other_possible_col} in {other_table} table\n"
+                "Please rename the columns or provide the `sample_column` argument to "
+                "avoid ambiguity.\n"
+                f"Using the {default_column_name} column detected from the "
+                f"{which_table} table."
+            )
+        else:
+            logger.warning_once(
+                f"A match for the {default_column_name} column was found in "
+                f"{which_table} table: {possible_col}\n"
+                f"But it was not found in {other_table} table.\n"
+                "Please add or rename the column in the appropriate table.\n"
+                f"Using the {default_column_name} column detected from the "
+                f"{which_table} table."
+            )
+        return possible_col
     elif required:
         err_msg = (
             f"Could not find the {default_column_name} column in " + generate_err_msg()
