@@ -123,4 +123,5 @@ discuss it.
 
 ## License
 
-This project is licensed under the Apache 2.0 License. See the LICENSE file for more details.
+This project contains portions derived from various sources under the Apache License,
+Version 2.0. For full details, please refer to the [LICENSE](./LICENSE) file.
