@@ -84,6 +84,13 @@ class SparseReader(datasets.ArrowBasedBuilder):
         sp.load_npz
 
         for file_idx, file in enumerate(itertools.chain.from_iterable(files)):
+            if file.startswith("zip"):
+                splits = file.split("::")
+                data_type = splits[0]
+                if "data.npy" not in data_type:
+                    continue
+                file = splits[1:]
+                file = "::".join(file)
             with xnumpy_load(
                 file,
                 mmap_mode=self.config.mmap_mode,

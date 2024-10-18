@@ -14,6 +14,7 @@ from datasets.features.features import (
     _arrow_to_datasets_dtype,
     string_to_arrow,
 )
+from packaging import version
 
 from biosets import config
 from biosets.utils.import_util import (
@@ -140,9 +141,11 @@ def determine_upcast(dtype_list):
 
 
 def concat_blocks(pa_tables: List[pa.Table], axis: int = 0, append=True) -> pa.Table:
+    if len(pa_tables) == 0:
+        raise ValueError("Passed an empty list of tables")
     if axis == 0:
         # we set promote=True to fill missing columns with null values
-        if config.PYARROW_VERSION.major < 14:
+        if version.parse(pa.__version__) < version.parse("14.0.0"):
             return pa.concat_tables(pa_tables, promote=True)
         else:
             return pa.concat_tables(pa_tables, promote_options="permissive")
