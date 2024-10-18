@@ -1037,7 +1037,7 @@ class TestBioData(unittest.TestCase):
         pd_data = data.to_pandas()
         assert pd_data["sample"].tolist() == ["sample1", "sample2"]
         assert pd_data["target"].tolist() == ["a", "b"]
-        assert pd_data["labels"].tolist() == [0, 1]
+        assert pd_data["labels"].tolist() == [1, 0]
 
     def test_biodata_load_dataset_with_multiple_files_and_without_labels(self):
         with self.assertRaises(DatasetGenerationError) as context:
