@@ -136,7 +136,7 @@ def feature_metadata_file(tmp_path):
 
 
 @pytest.fixture
-def csv_file_multiclass(tmp_path):
+def multiclass(tmp_path):
     filename = tmp_path / "file_multiclass.csv"
     data = textwrap.dedent(
         """
@@ -153,8 +153,8 @@ def csv_file_multiclass(tmp_path):
 
 
 @pytest.fixture
-def csv_file_with_index_missing_sample_column(tmp_path):
-    filename = tmp_path / "file_with_index_missing_sample_column.csv"
+def data_with_index_missing_sample_column(tmp_path):
+    filename = tmp_path / "data_with_index_missing_sample_column.csv"
     data = textwrap.dedent(
         """
         header1,header2
@@ -168,8 +168,8 @@ def csv_file_with_index_missing_sample_column(tmp_path):
 
 
 @pytest.fixture
-def csv_file_with_index_matching_sample_column_name(tmp_path):
-    filename = tmp_path / "file_with_index_matching_sample_column_name.csv"
+def data_with_samples(tmp_path):
+    filename = tmp_path / "data_with_samples.csv"
     data = textwrap.dedent(
         """
         sample,header1,header2
@@ -183,22 +183,7 @@ def csv_file_with_index_matching_sample_column_name(tmp_path):
 
 
 @pytest.fixture
-def csv_file_with_index_matching_sample_column_index(tmp_path):
-    filename = tmp_path / "file_with_index_matching_sample_column_index.csv"
-    data = textwrap.dedent(
-        """
-        sample_id,header1,header2
-        sample1,1,2
-        sample2,10,20
-        """
-    )
-    with open(filename, "w") as f:
-        f.write(data)
-    return str(filename)
-
-
-@pytest.fixture
-def csv_file_feature_metadata_missing_sample_column(tmp_path):
+def feature_metadata_missing_sample_column(tmp_path):
     filename = tmp_path / "feature_metadata_missing_sample_column.csv"
     data = textwrap.dedent(
         """
@@ -213,7 +198,7 @@ def csv_file_feature_metadata_missing_sample_column(tmp_path):
 
 
 @pytest.fixture
-def csv_file_feature_metadata_matching_sample_column_index(tmp_path):
+def feature_metadata_matching_sample_column_index(tmp_path):
     filename = tmp_path / "feature_metadata_matching_sample_column_index.csv"
     data = textwrap.dedent(
         """
@@ -228,8 +213,8 @@ def csv_file_feature_metadata_matching_sample_column_index(tmp_path):
 
 
 @pytest.fixture
-def csv_file_with_metadata(tmp_path):
-    filename = tmp_path / "file_with_metadata.csv"
+def data_with_metadata(tmp_path):
+    filename = tmp_path / "data_with_metadata.csv"
     data = textwrap.dedent(
         """
         sample,metadata1,metadata2,header1,header2
@@ -243,7 +228,7 @@ def csv_file_with_metadata(tmp_path):
 
 
 @pytest.fixture
-def csv_file_with_unmatched_sample_column(tmp_path):
+def data_with_unmatched_sample_column(tmp_path):
     filename = tmp_path / "file_unmatched_sample.csv"
     data = textwrap.dedent(
         """
@@ -258,7 +243,7 @@ def csv_file_with_unmatched_sample_column(tmp_path):
 
 
 @pytest.fixture
-def csv_file_feature_metadata_with_missing_header(tmp_path):
+def feature_metadata_with_missing_header(tmp_path):
     filename = tmp_path / "feature_metadata_missing_header.csv"
     data = textwrap.dedent(
         """
@@ -652,14 +637,14 @@ class TestBioData(unittest.TestCase):
         self.assertEqual(pa_table.num_rows, 2)
 
     def test_generate_tables_multiclass_labels(self):
-        origin_metadata = _get_origin_metadata([self.csv_file_multiclass])
+        origin_metadata = _get_origin_metadata([self.multiclass])
         data_files = DataFilesDict(
-            {"train": DataFilesList([self.csv_file_multiclass], origin_metadata)}
+            {"train": DataFilesList([self.multiclass], origin_metadata)}
         )
         biodata = BioData(data_files=data_files)
         biodata.INPUT_FEATURE = Abundance
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.csv_file_multiclass]])
+        generator = biodata._generate_tables(reader, [[self.multiclass]])
         pa_table = pa.concat_tables([table for _, table in generator])
 
         self.assertEqual(pa_table.num_columns, 4)
@@ -671,12 +656,12 @@ class TestBioData(unittest.TestCase):
 
     def test_generate_tables_missing_sample_column(self):
         origin_metadata = _get_origin_metadata(
-            [self.csv_file_with_index_missing_sample_column]
+            [self.data_with_index_missing_sample_column]
         )
         data_files = DataFilesDict(
             {
                 "train": DataFilesList(
-                    [self.csv_file_with_index_missing_sample_column], origin_metadata
+                    [self.data_with_index_missing_sample_column], origin_metadata
                 )
             }
         )
@@ -692,7 +677,7 @@ class TestBioData(unittest.TestCase):
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
             generator = biodata._generate_tables(
-                reader, [[self.csv_file_with_index_missing_sample_column]]
+                reader, [[self.data_with_index_missing_sample_column]]
             )
             pa.concat_tables([table for _, table in generator])
 
