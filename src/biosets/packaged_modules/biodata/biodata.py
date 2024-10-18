@@ -158,8 +158,10 @@ class BioDataConfig(datasets.BuilderConfig):
     batch_column: Optional[str] = None
     sample_column: Optional[str] = None
     metadata_columns: Optional[List[str]] = None
+    data_columns: Optional[List[str]] = None
     target_column: Optional[str] = None
     feature_column: Optional[str] = None
+    columns: Optional[List[str]] = None
 
     drop_labels: bool = None
     drop_samples: bool = None
