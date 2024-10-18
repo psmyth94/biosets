@@ -106,6 +106,21 @@ def sample_metadata_file(tmp_path):
 
 
 @pytest.fixture
+def sample_metadata_file_2(tmp_path):
+    filename = tmp_path / "sample_metadata_2.csv"
+    data = textwrap.dedent(
+        """
+        sample,batch,metadata1,metadata2,target
+        sample3,batch3,c,3,c
+        sample4,batch4,d,40,d
+        """
+    )
+    with open(filename, "w") as f:
+        f.write(data)
+    return str(filename)
+
+
+@pytest.fixture
 def feature_metadata_file(tmp_path):
     filename = tmp_path / "feature_metadata.csv"
     data = textwrap.dedent(
@@ -395,45 +410,39 @@ class TestBioData(unittest.TestCase):
         txt_file,
         npz_file,
         sample_metadata_file,
+        sample_metadata_file_2,
         feature_metadata_file,
-        csv_file_multiclass,
-        csv_file_with_index_missing_sample_column,
-        csv_file_with_index_matching_sample_column_name,
-        csv_file_with_index_matching_sample_column_index,
-        csv_file_feature_metadata_missing_sample_column,
-        csv_file_feature_metadata_matching_sample_column_index,
-        csv_file_with_metadata,
-        csv_file_with_unmatched_sample_column,
-        csv_file_feature_metadata_with_missing_header,
+        multiclass,
+        data_with_index_missing_sample_column,
+        data_with_samples,
+        feature_metadata_missing_sample_column,
+        feature_metadata_matching_sample_column_index,
+        data_with_metadata,
+        data_with_unmatched_sample_column,
+        feature_metadata_with_missing_header,
+        feature_metadata_with_missing_feature_column,
     ):
         self.csv_file = csv_file
         self.jsonl_file = jsonl_file
         self.txt_file = txt_file
         self.npz_file = npz_file
         self.sample_metadata_file = sample_metadata_file
+        self.sample_metadata_file_2 = sample_metadata_file_2
         self.feature_metadata_file = feature_metadata_file
-        self.csv_file_multiclass = csv_file_multiclass
-        self.csv_file_with_index_missing_sample_column = (
-            csv_file_with_index_missing_sample_column
+        self.multiclass = multiclass
+        self.data_with_index_missing_sample_column = (
+            data_with_index_missing_sample_column
         )
-        self.csv_file_with_index_matching_sample_column_name = (
-            csv_file_with_index_matching_sample_column_name
+        self.data_with_samples = data_with_samples
+        self.feature_metadata_missing_header = feature_metadata_missing_sample_column
+        self.feature_metadata_matching_sample_column_index = (
+            feature_metadata_matching_sample_column_index
         )
-        self.csv_file_with_index_matching_sample_column_index = (
-            csv_file_with_index_matching_sample_column_index
-        )
-        self.csv_file_feature_metadata_missing_header = (
-            csv_file_feature_metadata_missing_sample_column
-        )
-        self.csv_file_feature_metadata_matching_sample_column_index = (
-            csv_file_feature_metadata_matching_sample_column_index
-        )
-        self.csv_file_with_metadata = csv_file_with_metadata
-        self.csv_file_with_unmatched_sample_column = (
-            csv_file_with_unmatched_sample_column
-        )
-        self.csv_file_feature_metadata_with_missing_header = (
-            csv_file_feature_metadata_with_missing_header
+        self.data_with_metadata = data_with_metadata
+        self.data_with_unmatched_sample_column = data_with_unmatched_sample_column
+        self.feature_metadata_with_missing_header = feature_metadata_with_missing_header
+        self.feature_metadata_with_missing_feature_column = (
+            feature_metadata_with_missing_feature_column
         )
 
     def setUp(self):
@@ -942,47 +951,70 @@ class TestBioData(unittest.TestCase):
         self.assertIn("sample", features)
 
     def test_create_features_missing_schema(self):
-        with self.assertRaises(ValueError):
-            self.data._create_features({"invalid": {}})
+        with self.assertRaises(ValueError) as context:
+            self.data._create_features(
+                {"invalid": {"dtype": "string", "id": None, "_type": "Value"}},
+                column_names=["sample", "target"],
+            )
+            self.assertIn(
+                "Could not find the column 'invalid' in the data table.",
+                str(context.exception),
+            )
 
     def test_create_features_schema_none(self):
         schema = None
         with self.assertRaises(ValueError):
-            self.data._create_features(schema)
+            self.data._create_features(schema, column_names=["sample", "target"])
 
     def test_create_features_empty_schema(self):
         schema = {}
         with self.assertRaises(ValueError):
-            self.data._create_features(schema)
+            self.data._create_features(schema, column_names=["sample", "target"])
 
     def test_create_features_invalid_feature_metadata(self):
         schema = pa.schema([("sample", pa.int64()), ("target", pa.float64())])
-        feature_metadata = "invalid_metadata"
-        with self.assertRaises(TypeError):
-            self.data._create_features(schema, feature_metadata)
+        feature_metadata = {"non_existant": "metadata"}
+        # should still be fine, just without metadata for that feature
+        self.data._create_features(
+            schema,
+            feature_metadata=feature_metadata,
+            column_names=["sample", "target"],
+        )
 
-    def test_create_features_unsupported_schema_types(self):
+    def test_create_features_binary_schema_types(self):
         schema = pa.schema([("sample", pa.binary()), ("target", pa.large_binary())])
-        with self.assertRaises(ValueError):
-            self.data._create_features(schema)
+        self.data._create_features(schema, column_names=["sample", "target"])
 
     def test_biodata_load_dataset(self):
         load_dataset(
             "otu",
-            data_files=self.csv_file,
+            data_files=self.data_with_samples,
             sample_metadata_files=self.sample_metadata_file,
             feature_metadata_files=self.feature_metadata_file,
             target_column="metadata1",
         )["train"]
 
+    def test_biodata_load_dataset_with_sparse_reader(self):
+        data = load_dataset(
+            "snp",
+            data_files=self.npz_file,
+            sample_metadata_files=self.sample_metadata_file,
+            feature_metadata_files=self.feature_metadata_file,
+            target_column="metadata1",
+        )["train"]
+        pd_data = data.to_pandas()
+        assert len(pd_data) == 2
 
-# def test_biodata_load_dataset_with_sparse_reader(
-#     npz_file, csv_file_sample_metadata, csv_file_feature_metadata
-# ):
-#     load_dataset(
-#         "snp",
-#         data_files=npz_file,
-#         sample_metadata_files=csv_file_sample_metadata,
-#         feature_metadata_files=csv_file_feature_metadata,
-#         target_column="metadata1",
-#     )["train"]
+    def test_biodata_load_dataset_with_multiple_sparse_reader(self):
+        data = load_dataset(
+            "snp",
+            data_files=[self.npz_file, self.npz_file],
+            sample_metadata_files=[
+                self.sample_metadata_file,
+                self.sample_metadata_file_2,
+            ],
+            feature_metadata_files=self.feature_metadata_file,
+            target_column="metadata1",
+        )["train"]
+        pd_data = data.to_pandas()
+        assert len(pd_data) == 2
