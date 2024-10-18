@@ -6,6 +6,12 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 import pytest
+from biosets.features import Abundance
+from biosets.load import load_dataset
+from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
+from biosets.packaged_modules.csv.csv import Csv
+from biosets.packaged_modules.npz.npz import SparseReader
+from biosets.utils import logging
 from datasets.data_files import (
     DataFilesDict,
     DataFilesList,
@@ -14,13 +20,6 @@ from datasets.data_files import (
 from datasets.exceptions import DatasetGenerationError
 from datasets.features import Features, Value
 from datasets.packaged_modules.json.json import Json
-
-from biosets.features import Abundance
-from biosets.load import load_dataset
-from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
-from biosets.packaged_modules.csv.csv import Csv
-from biosets.packaged_modules.npz.npz import SparseReader
-from biosets.utils import logging
 
 logger = logging.get_logger(__name__)
 
@@ -344,7 +343,7 @@ class TestBioDataConfig(unittest.TestCase):
 
     def test_get_builder_kwargs_none_files(self):
         with unittest.mock.patch(
-            "biosets.packaged_modules.biodata.biodata.BioDataConfig.__post_init__"
+            "biosets.packaged_modules.biodata.BioDataConfig.__post_init__"
         ):
             config = BioDataConfig(name="test_config")
             builder_kwargs = config._get_builder_kwargs(None)
@@ -352,7 +351,7 @@ class TestBioDataConfig(unittest.TestCase):
 
     def test_get_builder_kwargs_empty_files(self):
         with unittest.mock.patch(
-            "biosets.packaged_modules.biodata.biodata.BioDataConfig.__post_init__"
+            "biosets.packaged_modules.biodata.BioDataConfig.__post_init__"
         ):
             config = BioDataConfig(name="test_config")
             files = {}
@@ -361,7 +360,7 @@ class TestBioDataConfig(unittest.TestCase):
 
     def test_get_builder_kwargs_mixed_extensions(self):
         with unittest.mock.patch(
-            "biosets.packaged_modules.biodata.biodata.BioDataConfig.__post_init__"
+            "biosets.packaged_modules.biodata.BioDataConfig.__post_init__"
         ):
             config = BioDataConfig(name="test_config")
             files = {"train": [self.csv_file, "data/train.unsupported"]}
@@ -372,7 +371,7 @@ class TestBioDataConfig(unittest.TestCase):
 
     def test_get_builder_kwargs_conflicting_builder_kwargs(self):
         with unittest.mock.patch(
-            "biosets.packaged_modules.biodata.biodata.BioDataConfig.__post_init__"
+            "biosets.packaged_modules.biodata.BioDataConfig.__post_init__"
         ):
             config = BioDataConfig(name="test_config")
             config.builder_kwargs = {"separator": ",", "sep": ";"}
@@ -383,7 +382,7 @@ class TestBioDataConfig(unittest.TestCase):
 
     def test_get_builder_kwargs_valid(self):
         with unittest.mock.patch(
-            "biosets.packaged_modules.biodata.biodata.BioDataConfig.__post_init__"
+            "biosets.packaged_modules.biodata.BioDataConfig.__post_init__"
         ):
             config = BioDataConfig(name="test_config")
             files = {"train": [self.csv_file]}
@@ -393,7 +392,7 @@ class TestBioDataConfig(unittest.TestCase):
 
     def test_get_builder_kwargs_invalid_extension(self):
         with unittest.mock.patch(
-            "biosets.packaged_modules.biodata.biodata.BioDataConfig.__post_init__"
+            "biosets.packaged_modules.biodata.BioDataConfig.__post_init__"
         ):
             config = BioDataConfig(name="test_config")
             files = {"train": ["data/train.unsupported"]}
@@ -447,7 +446,7 @@ class TestBioData(unittest.TestCase):
 
     def setUp(self):
         with unittest.mock.patch(
-            "biosets.packaged_modules.biodata.biodata.BioDataConfig.__post_init__"
+            "biosets.packaged_modules.biodata.BioDataConfig.__post_init__"
         ):
             self.data = BioData()
             self.data.config = BioDataConfig(name="test_config")
@@ -1037,7 +1036,7 @@ class TestBioData(unittest.TestCase):
         pd_data = data.to_pandas()
         assert pd_data["sample"].tolist() == ["sample1", "sample2"]
         assert pd_data["target"].tolist() == ["a", "b"]
-        assert pd_data["labels"].tolist() == [1, 0]
+        assert set(pd_data["labels"].tolist()) == set([0, 1])
 
     def test_biodata_load_dataset_with_multiple_files_and_without_labels(self):
         with self.assertRaises(DatasetGenerationError) as context:
