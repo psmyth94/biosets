@@ -312,22 +312,22 @@ class TestBioDataConfig(unittest.TestCase):
 
     def test_post_init_no_data_files(self):
         with self.assertRaises(ValueError):
-            config = self.create_config()
+            self.create_config()
 
     def test_post_init_empty_data_files(self):
         with self.assertRaises(ValueError):
-            config = self.create_config(data_files={})
+            self.create_config(data_files={})
 
     def test_post_init_invalid_sample_metadata_files(self):
         with self.assertRaises(FileNotFoundError):
-            config = self.create_config(
+            self.create_config(
                 data_files=self.csv_file,
                 sample_metadata_files="nonexistent/path/sample_metadata.csv",
             )
 
     def test_post_init_invalid_feature_metadata_files(self):
         with self.assertRaises(FileNotFoundError):
-            config = self.create_config(
+            self.create_config(
                 data_files=self.csv_file,
                 feature_metadata_files="nonexistent/path/feature_metadata.csv",
             )
@@ -827,7 +827,7 @@ class TestBioData(unittest.TestCase):
             generator = biodata._generate_tables(
                 reader, [[self.data_with_unmatched_sample_column]], split_name="train"
             )
-            pa_table = pa.concat_tables([table for _, table in generator])
+            pa.concat_tables([table for _, table in generator])
             self.assertIn(
                 "was found in the data table but not in the metadata table",
                 log.output[0],
@@ -851,7 +851,7 @@ class TestBioData(unittest.TestCase):
         generator = biodata._generate_tables(
             reader, [[self.data_with_samples]], split_name="train"
         )
-        pa_table = pa.concat_tables([table for _, table in generator])
+        pa.concat_tables([table for _, table in generator])
 
     def test_generate_tables_feature_metadata_with_missing_feature_column(self):
         origin_metadata = _get_origin_metadata([self.data_with_samples])
@@ -874,7 +874,7 @@ class TestBioData(unittest.TestCase):
             generator = biodata._generate_tables(
                 reader, [[self.data_with_samples]], split_name="train"
             )
-            pa_table = pa.concat_tables([table for _, table in generator])
+            pa.concat_tables([table for _, table in generator])
             self.assertIn(
                 "Could not find the features column in metadata table", log.output[0]
             )
