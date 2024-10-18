@@ -11,6 +11,7 @@ from datasets.data_files import (
     DataFilesList,
     _get_origin_metadata,
 )
+from datasets.exceptions import DatasetGenerationError
 from datasets.features import Features, Value
 from datasets.packaged_modules.json.json import Json
 
@@ -217,9 +218,9 @@ def data_with_metadata(tmp_path):
     filename = tmp_path / "data_with_metadata.csv"
     data = textwrap.dedent(
         """
-        sample,metadata1,metadata2,header1,header2
-        sample1,1,2,1,2
-        sample2,10,20,10,20
+        sample,metadata1,metadata2,header1,header2,target
+        sample1,1,2,1,2,a
+        sample2,10,20,10,20,b
         """
     )
     with open(filename, "w") as f:
@@ -541,15 +542,17 @@ class TestBioData(unittest.TestCase):
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
-            generator = biodata._generate_tables(reader, [[self.csv_file]])
+            generator = biodata._generate_tables(
+                reader, [[self.csv_file]], split_name="train"
+            )
             pa_table = pa.concat_tables([table for _, table in generator])
             self.assertIn(
-                "Could not find the samples column in metadata table\nAvailable "
+                "Could not find the samples column in data table. Available "
                 "columns in data table: ['header1', 'header2']",
                 log.output[0],
             )
             self.assertIn(
-                "Could not find the batches column in metadata table\nAvailable "
+                "Could not find the batches column in data table. Available "
                 "columns in data table: ['header1', 'header2']",
                 log.output[1],
             )
@@ -572,15 +575,15 @@ class TestBioData(unittest.TestCase):
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
-            generator = biodata._generate_tables(reader, [[file]])
+            generator = biodata._generate_tables(reader, [[file]], split_name="train")
             pa_table = pa.concat_tables([table for _, table in generator])
             self.assertIn(
-                "Could not find the samples column in metadata table\nAvailable "
+                "Could not find the samples column in data table. Available "
                 "columns in data table: ['header1', 'header2']",
                 log.output[0],
             )
             self.assertIn(
-                "Could not find the batches column in metadata table\nAvailable "
+                "Could not find the batches column in data table. Available "
                 "columns in data table: ['header1', 'header2']",
                 log.output[1],
             )
@@ -603,15 +606,15 @@ class TestBioData(unittest.TestCase):
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
-            generator = biodata._generate_tables(reader, [[file]])
+            generator = biodata._generate_tables(reader, [[file]], split_name="train")
             pa_table = pa.concat_tables([table for _, table in generator])
             self.assertIn(
-                "Could not find the samples column in metadata table\nAvailable "
+                "Could not find the samples column in data table. Available "
                 "columns in data table: ['header1', 'header2']",
                 log.output[0],
             )
             self.assertIn(
-                "Could not find the batches column in metadata table\nAvailable "
+                "Could not find the batches column in data table. Available "
                 "columns in data table: ['header1', 'header2']",
                 log.output[1],
             )
@@ -634,20 +637,20 @@ class TestBioData(unittest.TestCase):
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
-            generator = biodata._generate_tables(reader, [[file]])
+            generator = biodata._generate_tables(reader, [[file]], split_name="train")
             pa_table = pa.concat_tables([table for _, table in generator])
             self.assertIn(
-                "Could not find the samples column in metadata table\nAvailable "
-                "columns in data table: ['0', '1', '2', '3', '4']",
+                "Could not find the samples column in data table. Available "
+                "columns in data table: ['0', '1']",
                 log.output[0],
             )
             self.assertIn(
-                "Could not find the batches column in metadata table\nAvailable "
-                "columns in data table: ['0', '1', '2', '3', '4']",
+                "Could not find the batches column in data table. Available "
+                "columns in data table: ['0', '1']",
                 log.output[1],
             )
 
-        self.assertEqual(pa_table.num_columns, 5)
+        self.assertEqual(pa_table.num_columns, 2)
         self.assertEqual(pa_table.num_rows, 2)
 
     def test_generate_tables_multiclass_labels(self):
@@ -658,7 +661,9 @@ class TestBioData(unittest.TestCase):
         biodata = BioData(data_files=data_files)
         biodata.INPUT_FEATURE = Abundance
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.multiclass]])
+        generator = biodata._generate_tables(
+            reader, [[self.multiclass]], split_name="train"
+        )
         pa_table = pa.concat_tables([table for _, table in generator])
 
         self.assertEqual(pa_table.num_columns, 4)
@@ -691,7 +696,9 @@ class TestBioData(unittest.TestCase):
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
             generator = biodata._generate_tables(
-                reader, [[self.data_with_index_missing_sample_column]]
+                reader,
+                [[self.data_with_index_missing_sample_column]],
+                split_name="train",
             )
             pa.concat_tables([table for _, table in generator])
 
@@ -722,7 +729,9 @@ class TestBioData(unittest.TestCase):
         biodata.INPUT_FEATURE = Abundance
         biodata.config.sample_column = "sample"
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.data_with_samples]])
+        generator = biodata._generate_tables(
+            reader, [[self.data_with_samples]], split_name="train"
+        )
         pa_table = pa.concat_tables([table for _, table in generator])
 
         self.assertIn("sample", pa_table.column_names)
@@ -744,7 +753,9 @@ class TestBioData(unittest.TestCase):
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
-            generator = biodata._generate_tables(reader, [[self.data_with_samples]])
+            generator = biodata._generate_tables(
+                reader, [[self.data_with_samples]], split_name="train"
+            )
             pa.concat_tables([table for _, table in generator])
             self.assertIn(
                 "Could not find the following columns in the data table: {'header3'}",
@@ -764,7 +775,9 @@ class TestBioData(unittest.TestCase):
         biodata.config.feature_metadata_files = [self.feature_metadata_file]
         biodata.config.feature_column = "feature"
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.data_with_samples]])
+        generator = biodata._generate_tables(
+            reader, [[self.data_with_samples]], split_name="train"
+        )
         pa.concat_tables([table for _, table in generator])
 
         self.assertIn("header1", biodata.info.features)
@@ -784,7 +797,9 @@ class TestBioData(unittest.TestCase):
         ]
         biodata.config.sample_column = "sample"
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.data_with_metadata]])
+        generator = biodata._generate_tables(
+            reader, [[self.data_with_metadata]], split_name="train"
+        )
         pa_table = pa.concat_tables([table for _, table in generator])
 
         self.assertIn("metadata1", pa_table.column_names)
@@ -810,7 +825,7 @@ class TestBioData(unittest.TestCase):
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
             generator = biodata._generate_tables(
-                reader, [[self.data_with_unmatched_sample_column]]
+                reader, [[self.data_with_unmatched_sample_column]], split_name="train"
             )
             pa_table = pa.concat_tables([table for _, table in generator])
             self.assertIn(
@@ -833,7 +848,9 @@ class TestBioData(unittest.TestCase):
             self.feature_metadata_with_missing_header
         ]
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.data_with_samples]])
+        generator = biodata._generate_tables(
+            reader, [[self.data_with_samples]], split_name="train"
+        )
         pa_table = pa.concat_tables([table for _, table in generator])
 
     def test_generate_tables_feature_metadata_with_missing_feature_column(self):
@@ -854,7 +871,9 @@ class TestBioData(unittest.TestCase):
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
-            generator = biodata._generate_tables(reader, [[self.data_with_samples]])
+            generator = biodata._generate_tables(
+                reader, [[self.data_with_samples]], split_name="train"
+            )
             pa_table = pa.concat_tables([table for _, table in generator])
             self.assertIn(
                 "Could not find the features column in metadata table", log.output[0]
@@ -874,7 +893,9 @@ class TestBioData(unittest.TestCase):
         )
         biodata.INPUT_FEATURE = Abundance
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.multiclass]])
+        generator = biodata._generate_tables(
+            reader, [[self.multiclass]], split_name="train"
+        )
         pa_table = pa.concat_tables([table for _, table in generator])
 
         assert pa_table.num_columns == 4
@@ -907,7 +928,9 @@ class TestBioData(unittest.TestCase):
         )
         biodata.INPUT_FEATURE = Abundance
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.multiclass]])
+        generator = biodata._generate_tables(
+            reader, [[self.multiclass]], split_name="train"
+        )
         pa_table = pa.concat_tables([table for _, table in generator])
 
         assert pa_table.num_columns == 4
@@ -955,7 +978,7 @@ class TestBioData(unittest.TestCase):
 
     def test_create_features_valid(self):
         schema = pa.schema([("sample", pa.int64()), ("target", pa.float64())])
-        features = self.data._create_features(schema)
+        features = self.data._create_features(schema, column_names=["sample", "target"])
         self.assertIsInstance(features, Features)
         self.assertIn("sample", features)
 
@@ -1009,21 +1032,64 @@ class TestBioData(unittest.TestCase):
             data_files=self.npz_file,
             sample_metadata_files=self.sample_metadata_file,
             feature_metadata_files=self.feature_metadata_file,
-            target_column="metadata1",
+            target_column="target",
         )["train"]
         pd_data = data.to_pandas()
-        assert len(pd_data) == 2
+        assert pd_data["sample"].tolist() == ["sample1", "sample2"]
+        assert pd_data["target"].tolist() == ["a", "b"]
+        assert pd_data["labels"].tolist() == [0, 1]
 
-    def test_biodata_load_dataset_with_multiple_sparse_reader(self):
-        data = load_dataset(
-            "snp",
-            data_files=[self.npz_file, self.npz_file],
-            sample_metadata_files=[
-                self.sample_metadata_file,
-                self.sample_metadata_file_2,
-            ],
-            feature_metadata_files=self.feature_metadata_file,
-            target_column="metadata1",
-        )["train"]
-        pd_data = data.to_pandas()
-        assert len(pd_data) == 2
+    def test_biodata_load_dataset_with_multiple_files_and_without_labels(self):
+        with self.assertRaises(DatasetGenerationError) as context:
+            load_dataset(
+                "snp",
+                data_files=[self.npz_file, self.npz_file],
+                sample_metadata_files=[
+                    self.sample_metadata_file,
+                    self.sample_metadata_file_2,
+                ],
+                feature_metadata_files=self.feature_metadata_file,
+                target_column="target",
+            )["train"]
+
+            self.assertIn(
+                "Labels must be provided if multiple sample metadata files "
+                "are provided. Either set `labels`, `positive_labels` "
+                "and/or `negative_labels` in `load_dataset`.",
+                str(context.exception),
+            )
+
+        with self.assertRaises(DatasetGenerationError) as context:
+            load_dataset(
+                "snp",
+                data_files=[self.data_with_metadata, self.data_with_metadata],
+                feature_metadata_files=self.feature_metadata_file,
+                target_column="target",
+            )["train"]
+
+            self.assertIn(
+                "Labels must be provided if multiple data files "
+                "are provided and the target column is found in the "
+                "data table. Either set `labels`, `positive_labels` "
+                "and/or `negative_labels` in `load_dataset`.",
+                str(context.exception),
+            )
+
+    # def test_biodata_load_dataset_with_multiple_files_and_with_labels(self):
+    #     data = load_dataset(
+    #         "snp",
+    #         data_files=[self.data_with_metadata, self.data_with_metadata],
+    #         feature_metadata_files=self.feature_metadata_file,
+    #         labels=["a", "b"],
+    #         target_column="target",
+    #     )["train"]
+    #     pd_data = data.to_pandas()
+    #     assert len(pd_data) == 4
+    #     assert pd_data["sample"].tolist() == [
+    #         "sample1",
+    #         "sample2",
+    #         "sample3",
+    #         "sample4",
+    #     ]
+    #     assert pd_data["target"].tolist() == ["a", "b", "c", "d"]
+    #     assert pd_data["labels"].tolist() == [0, 1, 2, 4]
