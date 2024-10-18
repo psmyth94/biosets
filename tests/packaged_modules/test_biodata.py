@@ -601,7 +601,7 @@ class TestBioData(unittest.TestCase):
         )
         biodata = BioData(data_files=data_files)
         biodata.INPUT_FEATURE = Abundance
-        reader = Csv(separator="\t")
+        reader = Csv()
         file = self.csv_file
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
