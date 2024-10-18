@@ -702,30 +702,19 @@ class BioData(datasets.ArrowBasedBuilder):
 
             return tbl
 
-        sample_metadata = None
-        if self.config.sample_metadata_files:
-            sample_metadata: Union[pd.DataFrame, "pl.DataFrame"] = self._read_metadata(
-                self.config.sample_metadata_files, to_arrow=False
-            )
-
-            # TODO: temporary fix for not getting a pandas DataFrame
-            if isinstance(sample_metadata, pa.Table):
-                from biosets.data_handling import DataHandler
-
-                data_handler = DataHandler()
-                sample_metadata = data_handler.to_pandas(sample_metadata)
-
         feature_metadata = None
         if self.config.feature_metadata_files:
-            feature_metadata: pa.Table = self._read_metadata(
-                self.config.feature_metadata_files
-            )
+            feature_metadata = self._read_metadata(self.config.feature_metadata_files)
 
         check_columns = True
         feature_metadata_dict = None
+        # key might not correspond to the current index of the file received (e.g. npz)
+        file_index = 0
+        sample_metadata = None
         for key, table in generator._generate_tables(*args, **gen_kwargs):
             stored_metadata_schema = table.schema.metadata or {}
 
+            sample_metadata = self._load_metadata(file_index, sample_metadata)
             if check_columns:
                 features = table.column_names
                 self = self._set_columns(
