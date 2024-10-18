@@ -75,7 +75,7 @@ def npz_file(tmp_path):
     filename = tmp_path / "file.npz"
 
     n_samples = 2
-    n_features = 5
+    n_features = 2
 
     data = sp.csr_matrix(
         sp.random(
