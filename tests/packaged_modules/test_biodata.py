@@ -257,6 +257,20 @@ def feature_metadata_with_missing_header(tmp_path):
 
 
 @pytest.fixture
+def feature_metadata_with_missing_feature_column(tmp_path):
+    filename = tmp_path / "feature_metadata_with_missing_feature_column.csv"
+    data = textwrap.dedent(
+        """
+        genus,metadata1,metadata2
+        header1,1,2
+        """
+    )
+    with open(filename, "w") as f:
+        f.write(data)
+    return str(filename)
+
+
+@pytest.fixture
 def unsupported_file(tmp_path):
     filename = tmp_path / "unsupported_file.unsupported"
     data = textwrap.dedent(
@@ -696,16 +710,9 @@ class TestBioData(unittest.TestCase):
             self.assertIn(msg, log.output[0])
 
     def test_generate_tables_matching_sample_column_name(self):
-        origin_metadata = _get_origin_metadata(
-            [self.csv_file_with_index_matching_sample_column_name]
-        )
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
         data_files = DataFilesDict(
-            {
-                "train": DataFilesList(
-                    [self.csv_file_with_index_matching_sample_column_name],
-                    origin_metadata,
-                )
-            }
+            {"train": DataFilesList([self.data_with_samples], origin_metadata)}
         )
         biodata = BioData(
             data_files=data_files,
@@ -715,58 +722,49 @@ class TestBioData(unittest.TestCase):
         biodata.INPUT_FEATURE = Abundance
         biodata.config.sample_column = "sample"
         reader = Csv()
-        generator = biodata._generate_tables(
-            reader, [[self.csv_file_with_index_matching_sample_column_name]]
-        )
+        generator = biodata._generate_tables(reader, [[self.data_with_samples]])
         pa_table = pa.concat_tables([table for _, table in generator])
 
         self.assertIn("sample", pa_table.column_names)
         self.assertEqual(pa_table.column("sample").to_pylist(), ["sample1", "sample2"])
 
     def test_generate_tables_feature_metadata_missing_header(self):
-        origin_metadata = _get_origin_metadata(
-            [self.csv_file_with_index_matching_sample_column_name]
-        )
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
         data_files = DataFilesDict(
-            {
-                "train": DataFilesList(
-                    [self.csv_file_with_index_matching_sample_column_name],
-                    origin_metadata,
-                )
-            }
+            {"train": DataFilesList([self.data_with_samples], origin_metadata)}
         )
         biodata = BioData(
             data_files=data_files,
             sample_metadata_files=self.sample_metadata_file,
-            feature_metadata_files=self.csv_file_feature_metadata_missing_header,
+            feature_metadata_files=self.feature_metadata_missing_header,
         )
         biodata.INPUT_FEATURE = Abundance
-        biodata.config.feature_metadata_files = [
-            self.csv_file_feature_metadata_missing_header
-        ]
+        biodata.config.feature_metadata_files = [self.feature_metadata_missing_header]
         reader = Csv()
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
         ) as log:
-            biodata._generate_tables(
-                reader, [[self.csv_file_with_index_matching_sample_column_name]]
-            )
+            generator = biodata._generate_tables(reader, [[self.data_with_samples]])
+            pa.concat_tables([table for _, table in generator])
             self.assertIn(
                 "Could not find the following columns in the data table: {'header3'}",
                 log.output[0],
             )
 
     def test_generate_tables_feature_metadata_matching_sample_column_name(self):
-        origin_metadata = _get_origin_metadata([self.csv_file])
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
         data_files = DataFilesDict(
-            {"train": DataFilesList([self.csv_file], origin_metadata)}
+            {"train": DataFilesList([self.data_with_samples], origin_metadata)}
         )
-        biodata = BioData(data_files=data_files)
+        biodata = BioData(
+            data_files=data_files,
+            feature_metadata_files=self.feature_metadata_file,
+        )
         biodata.INPUT_FEATURE = Abundance
         biodata.config.feature_metadata_files = [self.feature_metadata_file]
         biodata.config.feature_column = "feature"
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.csv_file]])
+        generator = biodata._generate_tables(reader, [[self.data_with_samples]])
         pa.concat_tables([table for _, table in generator])
 
         self.assertIn("header1", biodata.info.features)
@@ -775,9 +773,9 @@ class TestBioData(unittest.TestCase):
         self.assertIn("metadata2", biodata.info.features["header1"].metadata)
 
     def test_generate_tables_with_all_data_in_one_file(self):
-        origin_metadata = _get_origin_metadata([self.csv_file_with_metadata])
+        origin_metadata = _get_origin_metadata([self.data_with_metadata])
         data_files = DataFilesDict(
-            {"train": DataFilesList([self.csv_file_with_metadata], origin_metadata)}
+            {"train": DataFilesList([self.data_with_metadata], origin_metadata)}
         )
         biodata = BioData(data_files=data_files)
         biodata.INPUT_FEATURE = Abundance
@@ -786,7 +784,7 @@ class TestBioData(unittest.TestCase):
         ]
         biodata.config.sample_column = "sample"
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.csv_file_with_metadata]])
+        generator = biodata._generate_tables(reader, [[self.data_with_metadata]])
         pa_table = pa.concat_tables([table for _, table in generator])
 
         self.assertIn("metadata1", pa_table.column_names)
@@ -795,13 +793,11 @@ class TestBioData(unittest.TestCase):
         self.assertEqual(pa_table.column("metadata2").to_pylist(), [2, 20])
 
     def test_generate_tables_unmatched_sample_column(self):
-        origin_metadata = _get_origin_metadata(
-            [self.csv_file_with_unmatched_sample_column]
-        )
+        origin_metadata = _get_origin_metadata([self.data_with_unmatched_sample_column])
         data_files = DataFilesDict(
             {
                 "train": DataFilesList(
-                    [self.csv_file_with_unmatched_sample_column], origin_metadata
+                    [self.data_with_unmatched_sample_column], origin_metadata
                 )
             }
         )
@@ -810,9 +806,11 @@ class TestBioData(unittest.TestCase):
         biodata.config.sample_metadata_files = [self.sample_metadata_file]
         biodata.config.sample_column = "sample_id"
         reader = Csv()
-        with self.assertLogs(level="WARNING") as log:
+        with self.assertLogs(
+            "biosets.packaged_modules.biodata.biodata", level="WARNING"
+        ) as log:
             generator = biodata._generate_tables(
-                reader, [[self.csv_file_with_unmatched_sample_column]]
+                reader, [[self.data_with_unmatched_sample_column]]
             )
             pa_table = pa.concat_tables([table for _, table in generator])
             self.assertIn(
@@ -821,25 +819,51 @@ class TestBioData(unittest.TestCase):
             )
 
     def test_generate_tables_feature_metadata_with_missing_header(self):
-        origin_metadata = _get_origin_metadata([self.csv_file])
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
         data_files = DataFilesDict(
-            {"train": DataFilesList([self.csv_file], origin_metadata)}
+            {"train": DataFilesList([self.data_with_samples], origin_metadata)}
         )
-        biodata = BioData(data_files=data_files)
+        biodata = BioData(
+            data_files=data_files,
+            sample_metadata_files=self.sample_metadata_file,
+            feature_metadata_files=self.feature_metadata_with_missing_header,
+        )
         biodata.INPUT_FEATURE = Abundance
         biodata.config.feature_metadata_files = [
-            self.csv_file_feature_metadata_with_missing_header
+            self.feature_metadata_with_missing_header
         ]
         reader = Csv()
-        with self.assertLogs(level="WARNING") as log:
-            generator = biodata._generate_tables(reader, [[self.csv_file]])
+        generator = biodata._generate_tables(reader, [[self.data_with_samples]])
+        pa_table = pa.concat_tables([table for _, table in generator])
+
+    def test_generate_tables_feature_metadata_with_missing_feature_column(self):
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
+        data_files = DataFilesDict(
+            {"train": DataFilesList([self.data_with_samples], origin_metadata)}
+        )
+        biodata = BioData(
+            data_files=data_files,
+            sample_metadata_files=self.sample_metadata_file,
+            feature_metadata_files=self.feature_metadata_with_missing_feature_column,
+        )
+        biodata.INPUT_FEATURE = Abundance
+        biodata.config.feature_metadata_files = [
+            self.feature_metadata_with_missing_feature_column
+        ]
+        reader = Csv()
+        with self.assertLogs(
+            "biosets.packaged_modules.biodata.biodata", level="WARNING"
+        ) as log:
+            generator = biodata._generate_tables(reader, [[self.data_with_samples]])
             pa_table = pa.concat_tables([table for _, table in generator])
-            self.assertIn("Could not find the feature column", log.output[0])
+            self.assertIn(
+                "Could not find the features column in metadata table", log.output[0]
+            )
 
     def test_abundance_data_loading_binarized(self):
-        origin_metadata = _get_origin_metadata([self.csv_file_multiclass])
+        origin_metadata = _get_origin_metadata([self.multiclass])
         data_files = DataFilesDict(
-            {"train": DataFilesList([self.csv_file_multiclass], origin_metadata)}
+            {"train": DataFilesList([self.multiclass], origin_metadata)}
         )
 
         biodata = BioData(
@@ -850,7 +874,7 @@ class TestBioData(unittest.TestCase):
         )
         biodata.INPUT_FEATURE = Abundance
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.csv_file_multiclass]])
+        generator = biodata._generate_tables(reader, [[self.multiclass]])
         pa_table = pa.concat_tables([table for _, table in generator])
 
         assert pa_table.num_columns == 4
@@ -870,9 +894,9 @@ class TestBioData(unittest.TestCase):
         ]
 
     def test_abundance_data_loading_binarized_with_missing_labels(self):
-        origin_metadata = _get_origin_metadata([self.csv_file_multiclass])
+        origin_metadata = _get_origin_metadata([self.multiclass])
         data_files = DataFilesDict(
-            {"train": DataFilesList([self.csv_file_multiclass], origin_metadata)}
+            {"train": DataFilesList([self.multiclass], origin_metadata)}
         )
 
         biodata = BioData(
@@ -883,7 +907,7 @@ class TestBioData(unittest.TestCase):
         )
         biodata.INPUT_FEATURE = Abundance
         reader = Csv()
-        generator = biodata._generate_tables(reader, [[self.csv_file_multiclass]])
+        generator = biodata._generate_tables(reader, [[self.multiclass]])
         pa_table = pa.concat_tables([table for _, table in generator])
 
         assert pa_table.num_columns == 4
@@ -921,8 +945,8 @@ class TestBioData(unittest.TestCase):
 
     def test_read_metadata_empty_metadata_files(self):
         metadata_files = []
-        metadata = self.data._read_metadata(metadata_files)
-        self.assertIsNone(metadata)
+        with self.assertRaises(ValueError):
+            self.data._read_metadata(metadata_files)
 
     def test_read_metadata_invalid_paths(self):
         metadata_files = ["nonexistent/path/metadata.csv"]
