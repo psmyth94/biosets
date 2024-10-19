@@ -839,7 +839,11 @@ class BioData(datasets.ArrowBasedBuilder):
 
             if self.config.target_column:
                 labels = self.config.labels
-                if not self.config.positive_labels and not self.config.negative_labels:
+                if (
+                    not self.config.positive_labels
+                    and not self.config.negative_labels
+                    and not self.config.labels
+                ):
                     if (
                         self.config.sample_metadata_files
                         and len(self.config.sample_metadata_files) == 1
