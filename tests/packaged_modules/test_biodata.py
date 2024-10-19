@@ -15,6 +15,13 @@ from datasets.exceptions import DatasetGenerationError
 from datasets.features import Features, Value
 from datasets.packaged_modules.json.json import Json
 
+from biosets.features import Abundance
+from biosets.load import load_dataset
+from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
+from biosets.packaged_modules.csv.csv import Csv
+from biosets.packaged_modules.npz.npz import SparseReader
+from biosets.utils import logging
+
 logger = logging.get_logger(__name__)
 
 
