@@ -6,12 +6,6 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 import pytest
-from biosets.features import Abundance
-from biosets.load import load_dataset
-from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
-from biosets.packaged_modules.csv.csv import Csv
-from biosets.packaged_modules.npz.npz import SparseReader
-from biosets.utils import logging
 from datasets.data_files import (
     DataFilesDict,
     DataFilesList,
