@@ -6,12 +6,6 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 import pytest
-from biosets.features import Abundance
-from biosets.load import load_dataset
-from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
-from biosets.packaged_modules.csv.csv import Csv
-from biosets.packaged_modules.npz.npz import SparseReader
-from biosets.utils import logging
 from datasets.data_files import (
     DataFilesDict,
     DataFilesList,
@@ -20,6 +14,13 @@ from datasets.data_files import (
 from datasets.exceptions import DatasetGenerationError
 from datasets.features import Features, Value
 from datasets.packaged_modules.json.json import Json
+
+from biosets.features import Abundance
+from biosets.load import load_dataset
+from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
+from biosets.packaged_modules.csv.csv import Csv
+from biosets.packaged_modules.npz.npz import SparseReader
+from biosets.utils import logging
 
 logger = logging.get_logger(__name__)
 
@@ -1074,21 +1075,81 @@ class TestBioData(unittest.TestCase):
                 str(context.exception),
             )
 
-    # def test_biodata_load_dataset_with_multiple_files_and_with_labels(self):
-    #     data = load_dataset(
-    #         "snp",
-    #         data_files=[self.data_with_metadata, self.data_with_metadata],
-    #         feature_metadata_files=self.feature_metadata_file,
-    #         labels=["a", "b"],
-    #         target_column="target",
-    #     )["train"]
-    #     pd_data = data.to_pandas()
-    #     assert len(pd_data) == 4
-    #     assert pd_data["sample"].tolist() == [
-    #         "sample1",
-    #         "sample2",
-    #         "sample3",
-    #         "sample4",
-    #     ]
-    #     assert pd_data["target"].tolist() == ["a", "b", "c", "d"]
-    #     assert pd_data["labels"].tolist() == [0, 1, 2, 4]
+    def test_biodata_load_dataset_with_multiple_files_and_with_labels(self):
+        data = load_dataset(
+            "snp",
+            data_files=[self.data_with_metadata, self.data_with_metadata],
+            feature_metadata_files=self.feature_metadata_file,
+            labels=["a", "b"],
+            target_column="target",
+        )["train"]
+        pd_data = data.to_pandas()
+        assert len(pd_data) == 4
+        assert pd_data["sample"].tolist() == [
+            "sample1",
+            "sample2",
+            "sample1",
+            "sample2",
+        ]
+        assert pd_data["target"].tolist() == ["a", "b", "a", "b"]
+        assert set(pd_data["labels"].tolist()) == set([0, 1, 0, 1])
+
+    def test_biodata_load_dataset_with_multiple_files_and_positive_labels(self):
+        data = load_dataset(
+            "snp",
+            data_files=[self.data_with_metadata, self.data_with_metadata],
+            feature_metadata_files=self.feature_metadata_file,
+            positive_labels=["a", "b"],
+            target_column="target",
+        )["train"]
+        pd_data = data.to_pandas()
+        assert len(pd_data) == 4
+        assert pd_data["sample"].tolist() == [
+            "sample1",
+            "sample2",
+            "sample1",
+            "sample2",
+        ]
+        assert pd_data["target"].tolist() == ["a", "b", "a", "b"]
+        assert set(pd_data["labels"].tolist()) == set([1, 1, 1, 1])
+
+    def test_biodata_load_dataset_with_multiple_files_and_negative_labels(self):
+        data = load_dataset(
+            "snp",
+            data_files=[self.data_with_metadata, self.data_with_metadata],
+            feature_metadata_files=self.feature_metadata_file,
+            negative_labels=["a", "b"],
+            target_column="target",
+        )["train"]
+        pd_data = data.to_pandas()
+        assert len(pd_data) == 4
+        assert pd_data["sample"].tolist() == [
+            "sample1",
+            "sample2",
+            "sample1",
+            "sample2",
+        ]
+        assert pd_data["target"].tolist() == ["a", "b", "a", "b"]
+        assert set(pd_data["labels"].tolist()) == set([0, 0, 0, 0])
+
+    def test_biodata_load_dataset_with_multiple_sample_files_and_labels(self):
+        data = load_dataset(
+            "snp",
+            data_files=[self.npz_file, self.npz_file],
+            sample_metadata_files=[
+                self.sample_metadata_file,
+                self.sample_metadata_file_2,
+            ],
+            feature_metadata_files=self.feature_metadata_file,
+            labels=["a", "b", "c"],
+            target_column="target",
+        )["train"]
+        pd_data = data.to_pandas()
+        assert pd_data["sample"].tolist() == [
+            "sample1",
+            "sample2",
+            "sample3",
+            "sample4",
+        ]
+        assert pd_data["target"].tolist() == ["a", "b", "c", "d"]
+        assert set(pd_data["labels"].tolist()) == set([0, 1, 2, -1])

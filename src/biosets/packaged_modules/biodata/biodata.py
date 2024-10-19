@@ -641,16 +641,15 @@ class BioData(datasets.ArrowBasedBuilder):
         from biosets.data_handling import DataHandler
 
         def fn(tbl, labels, all_labels):
-            if any(isinstance(label, str) for label in labels):
-                lab1int = {label: i for i, label in enumerate(labels)}
-                all_labels = [lab1int.get(label, -1) for label in all_labels]
-                tbl_format = DataHandler.get_format(tbl)
-                all_labels = DataHandler.to_format(all_labels, tbl_format)
-                tbl = DataHandler.append_column(
-                    tbl,
-                    self.TARGET_COLUMN,
-                    all_labels,
-                )
+            lab2int = {label: i for i, label in enumerate(labels)}
+            all_labels = [lab2int.get(label, -1) for label in all_labels]
+            tbl_format = DataHandler.get_format(tbl)
+            all_labels = DataHandler.to_format(all_labels, tbl_format)
+            tbl = DataHandler.append_column(
+                tbl,
+                self.TARGET_COLUMN,
+                all_labels,
+            )
 
             return tbl
 
@@ -702,7 +701,7 @@ class BioData(datasets.ArrowBasedBuilder):
                     labels = list(set(current_labels))
                 if None in labels:
                     labels.remove(None)
-                tbl = fn(tbl, current_labels, labels)
+                tbl = fn(tbl, labels, current_labels)
                 if self.config.labels is None:
                     self.config.labels = [str(label) for label in labels]
 
@@ -840,7 +839,11 @@ class BioData(datasets.ArrowBasedBuilder):
 
             if self.config.target_column:
                 labels = self.config.labels
-                if not self.config.positive_labels and not self.config.negative_labels:
+                if (
+                    not self.config.positive_labels
+                    and not self.config.negative_labels
+                    and not self.config.labels
+                ):
                     if (
                         self.config.sample_metadata_files
                         and len(self.config.sample_metadata_files) == 1
