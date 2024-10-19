@@ -701,7 +701,7 @@ class BioData(datasets.ArrowBasedBuilder):
                     labels = list(set(current_labels))
                 if None in labels:
                     labels.remove(None)
-                tbl = fn(tbl, current_labels, labels)
+                tbl = fn(tbl, labels, current_labels)
                 if self.config.labels is None:
                     self.config.labels = [str(label) for label in labels]
 
