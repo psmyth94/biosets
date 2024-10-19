@@ -641,16 +641,15 @@ class BioData(datasets.ArrowBasedBuilder):
         from biosets.data_handling import DataHandler
 
         def fn(tbl, labels, all_labels):
-            if any(isinstance(label, str) for label in labels):
-                lab1int = {label: i for i, label in enumerate(labels)}
-                all_labels = [lab1int.get(label, -1) for label in all_labels]
-                tbl_format = DataHandler.get_format(tbl)
-                all_labels = DataHandler.to_format(all_labels, tbl_format)
-                tbl = DataHandler.append_column(
-                    tbl,
-                    self.TARGET_COLUMN,
-                    all_labels,
-                )
+            lab2int = {label: i for i, label in enumerate(labels)}
+            all_labels = [lab2int.get(label, -1) for label in all_labels]
+            tbl_format = DataHandler.get_format(tbl)
+            all_labels = DataHandler.to_format(all_labels, tbl_format)
+            tbl = DataHandler.append_column(
+                tbl,
+                self.TARGET_COLUMN,
+                all_labels,
+            )
 
             return tbl
 
