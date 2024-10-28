@@ -124,4 +124,4 @@ discuss it.
 ## License
 
 This project contains portions derived from various sources under the Apache License,
-Version 2.0. For full details, please refer to the [LICENSE](./LICENSE) file.
+Version 2.0 (see [LICENSE](./LICENSE)), as well as under the MIT License file (see [LICENSE-MIT](./LICENSE-MIT)).
