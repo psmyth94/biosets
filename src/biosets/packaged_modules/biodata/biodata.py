@@ -33,10 +33,10 @@ from biosets.utils import (
     as_py,
     concat_blocks,
     is_file_name,
-    is_polars_available,
     logging,
     upcast_tables,
 )
+from biocore.utils.import_util import is_polars_available
 
 from ...data_files import (
     FEATURE_METADATA_FILENAMES,
