@@ -1,8 +1,10 @@
 import json
 import textwrap
 import unittest
+from collections import defaultdict
 from pathlib import Path
 
+import datasets.builder
 import pandas as pd
 import pyarrow as pa
 import pytest
@@ -294,20 +296,285 @@ class TestBioDataConfig(unittest.TestCase):
         self.feature_metadata_file = feature_metadata_file
 
     def create_config(
-        self, data_files=None, sample_metadata_files=None, feature_metadata_files=None
+        self,
+        data_files=None,
+        sample_metadata_files=None,
+        feature_metadata_files=None,
+        name="test_config",
+        **kwargs,
     ):
-        if data_files:
+        if data_files and isinstance(data_files, (list, str)):
             if isinstance(data_files, str):
                 data_files = [data_files]
             origin_metadata = _get_origin_metadata(data_files)
             data_files = DataFilesDict(
                 {"train": DataFilesList(data_files, origin_metadata)}
             )
+        elif isinstance(data_files, dict):
+            data_files_dict = {}
+            for split, files in data_files.items():
+                if isinstance(files, str):
+                    files = [files]
+                origin_metadata = _get_origin_metadata(files)
+                data_files_dict[split] = DataFilesList(files, origin_metadata)
+            data_files = DataFilesDict(data_files_dict)
         return BioDataConfig(
-            name="test_config",
+            name=name,
             data_files=data_files,
             sample_metadata_files=sample_metadata_files,
             feature_metadata_files=feature_metadata_files,
+            **kwargs,
+        )
+
+    def test_post_init_data_files_with_invalid_config_name(self):
+        with self.assertRaises(datasets.builder.InvalidConfigName):
+            self.create_config(data_files=self.csv_file, name="invalid|name")
+
+    def test_post_init_data_files_with_multiple_splits_and_sample_metadata_as_list(
+        self,
+    ):
+        with self.assertRaises(ValueError) as context:
+            self.create_config(
+                data_files={"train": self.csv_file, "test": self.csv_file},
+                sample_metadata_files=[self.sample_metadata_file],
+            )
+        self.assertIn(
+            "When data_files has multiple splits, sample_metadata_files must be a dict with matching keys.",
+            str(context.exception),
+        )
+
+    def test_post_init_data_files_with_multiple_splits_and_feature_metadata_as_list(
+        self,
+    ):
+        config = self.create_config(
+            data_files={"train": self.csv_file, "test": self.csv_file},
+            feature_metadata_files=[self.feature_metadata_file],
+        )
+        self.assertIsInstance(config.feature_metadata_files, DataFilesDict)
+        self.assertIn("train", config.feature_metadata_files)
+        self.assertIn("test", config.feature_metadata_files)
+
+    def test_post_init_sample_metadata_files_with_extra_split(self):
+        with self.assertRaises(ValueError) as context:
+            self.create_config(
+                data_files={"train": self.csv_file},
+                sample_metadata_files={
+                    "train": self.sample_metadata_file,
+                    "test": self.sample_metadata_file,
+                },
+            )
+        self.assertIn(
+            "Sample metadata files contain keys {'test'} which are not present in data_files.",
+            str(context.exception),
+        )
+
+    def test_post_init_feature_metadata_files_with_extra_split(self):
+        with self.assertRaises(ValueError) as context:
+            self.create_config(
+                data_files={"train": self.csv_file},
+                feature_metadata_files={
+                    "train": self.feature_metadata_file,
+                    "test": self.feature_metadata_file,
+                },
+            )
+        self.assertIn(
+            "Feature metadata files contain keys {'test'} which are not present in data_files.",
+            str(context.exception),
+        )
+
+    def test_post_init_sample_metadata_files_with_missing_split(self):
+        # Should process correctly even if sample_metadata_files dict has fewer splits than data_files
+        config = self.create_config(
+            data_files={"train": self.csv_file, "test": self.csv_file},
+            sample_metadata_files={"train": self.sample_metadata_file},
+        )
+        self.assertIn("train", config.sample_metadata_files)
+        self.assertNotIn("test", config.sample_metadata_files)
+
+    def test_post_init_feature_metadata_files_with_missing_split(self):
+        # Should process correctly even if feature_metadata_files dict has fewer splits than data_files
+        config = self.create_config(
+            data_files={"train": self.csv_file, "test": self.csv_file},
+            feature_metadata_files={"train": self.feature_metadata_file},
+        )
+        self.assertIn("train", config.feature_metadata_files)
+        self.assertNotIn("test", config.feature_metadata_files)
+
+    def test_post_init_with_metadata_dir_and_no_sample_metadata_files(self):
+        # Assuming get_metadata_patterns function returns valid patterns
+        with unittest.mock.patch(
+            "biosets.data_files.get_metadata_patterns"
+        ) as mock_get_patterns:
+            mock_get_patterns.return_value = ["sample_metadata.csv"]
+            config = self.create_config(
+                data_files=self.csv_file,
+                sample_metadata_files=None,
+                sample_metadata_dir="/path/to/sample_metadata_dir",
+            )
+            self.assertIsInstance(config.sample_metadata_files, DataFilesDict)
+
+    def test_post_init_with_feature_metadata_dir_and_no_feature_metadata_files(self):
+        # Assuming get_feature_metadata_patterns function returns valid patterns
+        with unittest.mock.patch(
+            "biosets.data_files.get_feature_metadata_patterns"
+        ) as mock_get_patterns:
+            mock_get_patterns.return_value = ["feature_metadata.csv"]
+            config = self.create_config(
+                data_files=self.csv_file,
+                feature_metadata_files=None,
+                feature_metadata_dir="/path/to/feature_metadata_dir",
+            )
+            self.assertIsInstance(config.feature_metadata_files, DataFilesDict)
+
+    def test_post_init_with_nonexistent_metadata_dir(self):
+        with self.assertRaises(FileNotFoundError):
+            self.create_config(
+                data_files=self.csv_file,
+                sample_metadata_files=None,
+                sample_metadata_dir="/nonexistent/path",
+            )
+
+    def test_post_init_with_nonexistent_feature_metadata_dir(self):
+        with self.assertRaises(FileNotFoundError):
+            self.create_config(
+                data_files=self.csv_file,
+                feature_metadata_files=None,
+                feature_metadata_dir="/nonexistent/path",
+            )
+
+    def test_post_init_with_invalid_characters_in_file_paths(self):
+        invalid_path = "invalid|path/sample_metadata.csv"
+        with self.assertRaises(ValueError):
+            self.create_config(
+                data_files=self.csv_file, sample_metadata_files=invalid_path
+            )
+
+    def test_post_init_with_data_files_as_none(self):
+        with self.assertRaises(ValueError):
+            self.create_config(
+                data_files=None,
+                sample_metadata_files=self.sample_metadata_file,
+                feature_metadata_files=self.feature_metadata_file,
+            )
+
+    def test_post_init_with_all_none(self):
+        with self.assertRaises(ValueError):
+            self.create_config(
+                data_files=None, sample_metadata_files=None, feature_metadata_files=None
+            )
+
+    def test_post_init_with_data_files_dict_and_sample_metadata_files_as_dict(self):
+        config = self.create_config(
+            data_files={"train": [self.csv_file], "test": [self.csv_file]},
+            sample_metadata_files={
+                "train": [self.sample_metadata_file],
+                "test": [self.sample_metadata_file],
+            },
+        )
+        self.assertIn("train", config.sample_metadata_files)
+        self.assertIn("test", config.sample_metadata_files)
+
+    def test_post_init_with_data_files_dict_and_feature_metadata_files_as_dict(self):
+        config = self.create_config(
+            data_files={"train": [self.csv_file], "test": [self.csv_file]},
+            feature_metadata_files={
+                "train": [self.feature_metadata_file],
+                "test": [self.feature_metadata_file],
+            },
+        )
+        self.assertIn("train", config.feature_metadata_files)
+        self.assertIn("test", config.feature_metadata_files)
+
+    def test_post_init_with_mismatched_shards_in_sample_metadata_files(self):
+        with self.assertRaises(ValueError) as context:
+            self.create_config(
+                data_files={"train": [self.csv_file, self.csv_file]},
+                sample_metadata_files={"train": [self.sample_metadata_file]},
+            )
+        self.assertIn(
+            "The number of sharded sample metadata files must match the number of sharded data files in split 'train'.",
+            str(context.exception),
+        )
+
+    def test_post_init_with_single_data_file_and_single_sample_metadata_file(self):
+        config = self.create_config(
+            data_files=self.csv_file, sample_metadata_files=self.sample_metadata_file
+        )
+        self.assertEqual(len(config.data_files["train"]), 1)
+        self.assertEqual(len(config.sample_metadata_files["train"]), 1)
+
+    def test_post_init_with_multiple_splits_and_no_sample_metadata_files(self):
+        config = self.create_config(
+            data_files={"train": self.csv_file, "test": self.csv_file},
+            sample_metadata_files=None,
+        )
+        self.assertEqual(config.sample_metadata_files, defaultdict(list))
+
+    def test_post_init_with_multiple_splits_and_no_feature_metadata_files(self):
+        config = self.create_config(
+            data_files={"train": self.csv_file, "test": self.csv_file},
+            feature_metadata_files=None,
+        )
+        self.assertEqual(config.feature_metadata_files, defaultdict(list))
+
+    def test_post_init_with_sample_metadata_files_as_dict_and_shards_mismatch(self):
+        with self.assertRaises(ValueError) as context:
+            self.create_config(
+                data_files={"train": [self.csv_file, self.csv_file]},
+                sample_metadata_files={
+                    "train": [
+                        self.sample_metadata_file,
+                        self.sample_metadata_file,
+                        self.sample_metadata_file,
+                    ]
+                },
+            )
+        self.assertIn(
+            "The number of sharded sample metadata files must match the number of sharded data files in split 'train'.",
+            str(context.exception),
+        )
+
+    def test_post_init_with_feature_metadata_files_as_list_and_multiple_splits(self):
+        config = self.create_config(
+            data_files={"train": self.csv_file, "test": self.csv_file},
+            feature_metadata_files=[self.feature_metadata_file],
+        )
+        self.assertIsInstance(config.feature_metadata_files, DataFilesDict)
+        self.assertEqual(len(config.feature_metadata_files["train"]), 1)
+        self.assertEqual(len(config.feature_metadata_files["test"]), 1)
+
+    def test_post_init_with_feature_metadata_files_as_str_and_multiple_splits(self):
+        config = self.create_config(
+            data_files={"train": self.csv_file, "test": self.csv_file},
+            feature_metadata_files=self.feature_metadata_file,
+        )
+        self.assertIsInstance(config.feature_metadata_files, DataFilesDict)
+        self.assertEqual(len(config.feature_metadata_files["train"]), 1)
+        self.assertEqual(len(config.feature_metadata_files["test"]), 1)
+
+    def test_post_init_with_sample_metadata_files_as_str_and_single_split(self):
+        config = self.create_config(
+            data_files=self.csv_file, sample_metadata_files=self.sample_metadata_file
+        )
+        self.assertIsInstance(config.sample_metadata_files, DataFilesDict)
+        self.assertEqual(len(config.sample_metadata_files["train"]), 1)
+
+    def test_post_init_with_sample_metadata_files_as_list_and_single_split(self):
+        config = self.create_config(
+            data_files=self.csv_file, sample_metadata_files=[self.sample_metadata_file]
+        )
+        self.assertIsInstance(config.sample_metadata_files, DataFilesDict)
+        self.assertEqual(len(config.sample_metadata_files["train"]), 1)
+
+    def test_post_init_with_sample_metadata_files_as_list_and_mismatched_shards(self):
+        with self.assertRaises(ValueError) as context:
+            self.create_config(
+                data_files=[self.csv_file, self.csv_file],
+                sample_metadata_files=[self.sample_metadata_file],
+            )
+        self.assertIn(
+            "The number of sharded sample metadata files must match the number of sharded data files in split 'train'.",
+            str(context.exception),
         )
 
     def test_post_init_no_data_files(self):
@@ -341,6 +608,71 @@ class TestBioDataConfig(unittest.TestCase):
             ],
         )
         self.assertIsInstance(config.feature_metadata_files, DataFilesList)
+
+    def test_post_init_with_multi_sample_metadata_and_one_data_files(self):
+        self.create_config(
+            data_files=[self.csv_file],
+            sample_metadata_files=[
+                self.sample_metadata_file,
+                self.sample_metadata_file,
+            ],
+        )
+
+    def test_post_init_with_multi_data_and_one_sample_metadata_data_files(self):
+        self.create_config(
+            data_files=[self.csv_file, self.csv_file],
+            sample_metadata_files=self.sample_metadata_file,
+        )
+
+    def test_post_init_with_missing_key_in_sample_metadata_files(self):
+        with self.assertRaises(ValueError) as context:
+            self.create_config(
+                data_files=[self.csv_file, self.csv_file],
+                sample_metadata_files={
+                    "nonexistent_key": [
+                        self.sample_metadata_file,
+                        self.sample_metadata_file,
+                    ],
+                },
+            )
+        self.assertIn(
+            "Sample metadata files contain keys {'nonexistent_key'} which are not present in "
+            "data_files.",
+            str(context.exception),
+        )
+
+    def test_post_init_with_missing_key_in_feature_metadata_files(self):
+        with self.assertRaises(ValueError) as context:
+            self.create_config(
+                data_files=[self.csv_file, self.csv_file],
+                feature_metadata_files={
+                    "nonexistent_key": [
+                        self.feature_metadata_file,
+                        self.feature_metadata_file,
+                    ],
+                },
+            )
+        self.assertIn(
+            "Feature metadata files contain keys {'nonexistent_key'} which are not present in "
+            "data_files.",
+            str(context.exception),
+        )
+
+    def test_post_init_with_unequal_sample_metadata_and_data_files(self):
+        with self.assertRaises(ValueError) as context:
+            self.create_config(
+                data_files=[self.csv_file, self.csv_file],
+                sample_metadata_files=[
+                    self.sample_metadata_file,
+                    self.sample_metadata_file,
+                    self.sample_metadata_file,
+                ],
+            )
+        self.assertIn(
+            "The number of sharded sample metadata files must match the number "
+            "of sharded data files in split 'train'.",
+            str(context.exception),
+        )
 
     def test_get_builder_kwargs_none_files(self):
         with unittest.mock.patch(
@@ -877,6 +1209,32 @@ class TestBioData(unittest.TestCase):
             pa.concat_tables([table for _, table in generator])
             self.assertIn(
                 "Could not find the features column in metadata table", log.output[0]
+            )
+
+    def test_generate_tables_with_unequal_sample_metadata_and_data_files(self):
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
+        data_files = DataFilesDict(
+            {"train": DataFilesList([self.data_with_samples], origin_metadata)}
+        )
+        biodata = BioData(
+            data_files=data_files,
+            sample_metadata_files=[
+                self.sample_metadata_file,
+                self.sample_metadata_file_2,
+            ],
+        )
+        biodata.INPUT_FEATURE = Abundance
+        reader = Csv()
+        with self.assertLogs(
+            "biosets.packaged_modules.biodata.biodata", level="WARNING"
+        ) as log:
+            generator = biodata._generate_tables(
+                reader, [[self.data_with_samples]], split_name="train"
+            )
+            pa.concat_tables([table for _, table in generator])
+            self.assertIn(
+                "The number of sample metadata files does not match the number of data files.",
+                log.output[0],
             )
 
     def test_abundance_data_loading_binarized(self):

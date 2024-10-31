@@ -2,6 +2,7 @@ from setuptools import find_packages, setup
 
 REQUIRED_PKGS = [
     "datasets",
+    "biocore",
 ]
 
 QUALITY_REQUIRE = ["ruff>=0.1.5"]

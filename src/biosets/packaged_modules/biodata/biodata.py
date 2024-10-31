@@ -142,7 +142,7 @@ class BioDataConfig(datasets.BuilderConfig):
 
     features: Optional[datasets.Features] = None
 
-    metadata_dir: Optional[str] = None
+    sample_metadata_dir: Optional[str] = None
     sample_metadata_files: Optional[DataFilesDict] = None
 
     feature_metadata_dir: Optional[str] = None
@@ -201,174 +201,171 @@ class BioDataConfig(datasets.BuilderConfig):
     DEFAULT_FEATURE_METADATA_FILENAMES = FEATURE_METADATA_FILENAMES
 
     def __post_init__(self):
-        # The config name is used to name the cache directory.
-        for invalid_char in INVALID_WINDOWS_CHARACTERS_IN_PATH:
-            if invalid_char in self.name:
-                raise datasets.builder.InvalidConfigName(
-                    f"Bad characters from black list '{INVALID_WINDOWS_CHARACTERS_IN_PATH}' found in '{self.name}'. "
-                    f"They could create issues when creating a directory for this config on Windows filesystem."
-                )
-
-        if self.data_files and not isinstance(self.data_files, DataFilesDict):
-            raise ValueError(
-                f"Expected a DataFilesDict in data_files but got {self.data_files}"
+        # Check for invalid characters in the config name
+        if any(char in self.name for char in INVALID_WINDOWS_CHARACTERS_IN_PATH):
+            raise datasets.builder.InvalidConfigName(
+                f"Bad characters from black list '{INVALID_WINDOWS_CHARACTERS_IN_PATH}' found in '{self.name}'. "
+                f"They could create issues when creating a directory for this config on Windows filesystem."
             )
-        elif self.data_files:
-            data_files_dict = copy.deepcopy(self.data_files)
-            for split, files in self.data_files.items():
-                for i in range(len(files) - 1, -1, -1):
-                    file = files[i]
-                    if os.path.basename(file) in self.DEFAULT_SAMPLE_METADATA_FILENAMES:
-                        self.sample_metadata_files = self.sample_metadata_files or []
-                        if isinstance(self.sample_metadata_files, str):
-                            self.sample_metadata_files = [self.sample_metadata_files]
-                        self.sample_metadata_files.append(
-                            Path(file).resolve().as_posix()
-                        )
-                        data_files_dict[split].pop(i)
-                        data_files_dict[split].origin_metadata.pop(i)
-                    elif (
-                        os.path.basename(file)
-                        in self.DEFAULT_FEATURE_METADATA_FILENAMES
-                    ):
-                        self.feature_metadata_files = self.feature_metadata_files or []
-                        self.feature_metadata_files.append(
-                            Path(file).resolve().as_posix()
-                        )
-                        data_files_dict[split].pop(i)
-                        data_files_dict[split].origin_metadata.pop(i)
-                    elif os.path.splitext(file)[-1].lower() not in self.EXTENSION_MAP:
-                        data_files_dict[split].pop(i)
-                        data_files_dict[split].origin_metadata.pop(i)
-            self.data_files = data_files_dict
-        else:
+
+        # Validate and process data_files
+        if not self.data_files:
             raise ValueError(
                 "At least one data file must be specified, but got data_files=None"
             )
+        if not isinstance(self.data_files, DataFilesDict):
+            raise ValueError(
+                f"Expected a DataFilesDict in data_files but got {self.data_files}"
+            )
 
-        if self.metadata_dir and not self.sample_metadata_files:
-            base_path = Path(self.metadata_dir or "").expanduser().resolve().as_posix()
-            metadata_patterns = get_metadata_patterns(base_path)
-            self.sample_metadata_files = (
+        self.sample_metadata_files = self._ensure_metadata_files_dict(
+            self.sample_metadata_files, self.data_files, is_sample=True
+        )
+        self.feature_metadata_files = self._ensure_metadata_files_dict(
+            self.feature_metadata_files, self.data_files, is_sample=False
+        )
+
+        # Separate metadata files from data_files
+        data_files_dict = {}
+        for split, files in self.data_files.items():
+            valid_files, origin_metadata = [], []
+            for file, metadata in zip(files, self.data_files[split].origin_metadata):
+                file_path = Path(file).resolve().as_posix()
+                base_name = os.path.basename(file)
+                extension = os.path.splitext(file)[-1].lower()
+
+                if base_name in self.DEFAULT_SAMPLE_METADATA_FILENAMES:
+                    self.sample_metadata_files[split].append(file_path)
+                elif base_name in self.DEFAULT_FEATURE_METADATA_FILENAMES:
+                    self.feature_metadata_files[split].append(file_path)
+                elif extension in self.EXTENSION_MAP:
+                    valid_files.append(file)
+                    origin_metadata.append(metadata)
+            data_files_dict[split] = DataFilesList(valid_files, origin_metadata)
+        self.data_files = DataFilesDict(data_files_dict)
+
+        # Process metadata files
+        self.sample_metadata_files = self._process_metadata_files(
+            self.sample_metadata_files,
+            self.sample_metadata_dir,
+            get_metadata_patterns,
+            is_sample=True,
+        )
+        self.feature_metadata_files = self._process_metadata_files(
+            self.feature_metadata_files,
+            self.feature_metadata_dir,
+            get_feature_metadata_patterns,
+            is_sample=False,
+        )
+
+        # Validate the number of sample metadata files
+        for split in self.sample_metadata_files:
+            num_data_files = len(self.data_files.get(split, []))
+            num_metadata_files = len(self.sample_metadata_files[split])
+            if (
+                num_metadata_files > 1
+                and num_data_files > 1
+                and num_metadata_files != num_data_files
+            ):
+                raise ValueError(
+                    "The number of sharded sample metadata files must match the number "
+                    f"of sharded data files in split '{split}'."
+                )
+
+        self.data_kwargs = self._get_builder_kwargs(self.data_files)
+
+    def _ensure_list(self, value):
+        if value is None:
+            return []
+        return [value] if isinstance(value, (str, Path)) else value
+
+    def _ensure_metadata_files_dict(self, metadata_files, data_files, is_sample):
+        if metadata_files is None:
+            return defaultdict(list)
+        if isinstance(metadata_files, dict):
+            missing_keys = set(metadata_files.keys()) - set(data_files.keys())
+            if missing_keys:
+                file_type = "Sample" if is_sample else "Feature"
+                raise ValueError(
+                    f"{file_type} metadata files contain keys {missing_keys} which are not present "
+                    "in data_files."
+                )
+            for split in metadata_files:
+                metadata_files[split] = self._ensure_list(metadata_files[split])
+            return metadata_files
+        else:
+            metadata_files = self._ensure_list(metadata_files)
+            metadata_files_dict = {}
+            if is_sample and len(data_files) > 1:
+                raise ValueError(
+                    "When data_files has multiple splits, sample_metadata_files must "
+                    "be a dict with matching keys."
+                )
+            if not is_sample and isinstance(metadata_files, list):
+                # For feature_metadata_files, copy to all splits if data_files has multiple keys
+                if len(data_files) > 1:
+                    for split in data_files.keys():
+                        metadata_files_dict[split] = metadata_files
+                else:
+                    split = next(iter(data_files))
+                    metadata_files_dict[split] = metadata_files
+            else:
+                split = next(iter(data_files))
+                metadata_files_dict[split] = metadata_files
+            return metadata_files_dict
+
+    def _process_metadata_files(
+        self, metadata_files_dict, metadata_dir, get_patterns_func, is_sample
+    ):
+        processed_metadata_files = {}
+
+        if metadata_dir and not metadata_files_dict:
+            base_path = Path(metadata_dir).expanduser().resolve()
+            if not base_path.is_dir():
+                raise FileNotFoundError(
+                    f"Directory {base_path} does not exist or is not a directory."
+                )
+            base_path = base_path.as_posix()
+
+            metadata_patterns = get_patterns_func(base_path)
+            metadata_files = (
                 DataFilesPatternsList.from_patterns(
                     metadata_patterns,
                     allowed_extensions=self.ALLOWED_METADATA_EXTENSIONS,
-                )
+                ).resolve(base_path)
                 if metadata_patterns
-                else None
+                else []
             )
-            self.sample_metadata_files = (
-                [Path(f) for f in self.sample_metadata_files]
-                if self.sample_metadata_files
-                else None
-            )
-
-            self.sample_metadata_files = [
-                f.resolve().as_posix() for f in self.sample_metadata_files if f.exists()
-            ]
-
-        if self.sample_metadata_files and not isinstance(
-            self.sample_metadata_files, DataFilesPatternsList
-        ):
-            if isinstance(self.sample_metadata_files, (str, Path)):
-                self.sample_metadata_files = [self.sample_metadata_files]
-            data_dir = ""
-            if len(self.sample_metadata_files) > 1:
-                self.sample_metadta_files = [
-                    Path(f).resolve().as_posix() for f in self.sample_metadata_files
+        for split, metadata_files in metadata_files_dict.items():
+            if metadata_files and not isinstance(metadata_files, DataFilesPatternsList):
+                data_dir = ""
+                metadata_files = [
+                    Path(f).resolve().as_posix()
+                    for f in self._ensure_list(metadata_files)
                 ]
-                data_dir = os.path.commonpath(self.sample_metadata_files)
-
-            if not data_dir:
-                if is_file_name(self.sample_metadata_files[0]):
-                    paths = [f for split in self.data_files.values() for f in split]
-                    if len(paths) > 1:
-                        data_dir = os.path.commonpath(paths)
-                    else:
-                        data_dir = Path(paths[0]).parent.resolve().as_posix()
+                if len(metadata_files) > 1:
+                    data_dir = os.path.commonpath(metadata_files)
                 else:
-                    data_dir = (
-                        Path(self.sample_metadata_files[0]).parent.resolve().as_posix()
-                    )
-                    self.sample_metadata_files = [
-                        Path(f).name for f in self.sample_metadata_files
-                    ]
-
-            metadata_patterns = next(
-                iter(sanitize_patterns(self.sample_metadata_files).values())
-            )
-            self.sample_metadata_files = DataFilesPatternsList.from_patterns(
-                metadata_patterns,
-                allowed_extensions=self.ALLOWED_METADATA_EXTENSIONS,
-            ).resolve(data_dir)
-
-        if self.feature_metadata_dir and not self.feature_metadata_files:
-            base_path = (
-                Path(self.feature_metadata_dir or "").expanduser().resolve().as_posix()
-            )
-            feature_metadata_patterns = get_feature_metadata_patterns(base_path)
-            self.feature_metadata_files = (
-                DataFilesPatternsList.from_patterns(
-                    feature_metadata_patterns,
-                    allowed_extensions=self.ALLOWED_METADATA_EXTENSIONS,
+                    first_file = metadata_files[0]
+                    if is_file_name(first_file):
+                        paths = [f for files in self.data_files.values() for f in files]
+                        data_dir = (
+                            os.path.commonpath(paths)
+                            if len(paths) > 1
+                            else Path(paths[0]).parent.resolve().as_posix()
+                        )
+                    else:
+                        data_dir = Path(first_file).parent.resolve().as_posix()
+                        metadata_files = [Path(f).name for f in metadata_files]
+                metadata_patterns = next(
+                    iter(sanitize_patterns(metadata_files).values())
                 )
-                if feature_metadata_patterns
-                else None
-            )
-            self.feature_metadata_files = (
-                [Path(f).resolve().as_posix() for f in self.feature_metadata_files]
-                if self.feature_metadata_files
-                else None
-            )
-
-        if self.feature_metadata_files and not isinstance(
-            self.feature_metadata_files, DataFilesPatternsList
-        ):
-            if isinstance(self.feature_metadata_files, (str, Path)):
-                self.feature_metadata_files = [self.feature_metadata_files]
-            data_dir = ""
-            if len(self.feature_metadata_files) > 1:
-                data_dir = os.path.commonpath(self.feature_metadata_files)
-
-            if not data_dir:
-                if is_file_name(self.feature_metadata_files[0]):
-                    paths = [f for split in self.data_files.values() for f in split]
-                    if len(paths) > 1:
-                        data_dir = os.path.commonpath(paths)
-                    else:
-                        data_dir = Path(paths[0]).parent.resolve().as_posix()
-                else:
-                    data_dir = (
-                        Path(self.feature_metadata_files[0]).parent.resolve().as_posix()
-                    )
-                    self.feature_metadata_files = [
-                        Path(f).name for f in self.feature_metadata_files
-                    ]
-
-            feature_metadata_patterns = next(
-                iter(sanitize_patterns(self.feature_metadata_files).values())
-            )
-            self.feature_metadata_files = DataFilesPatternsList.from_patterns(
-                feature_metadata_patterns,
-                allowed_extensions=self.ALLOWED_METADATA_EXTENSIONS,
-            ).resolve(data_dir)
-
-        for split in list(self.data_files.keys()):
-            for i in reversed(range(len(self.data_files[split]))):
-                if (
-                    self.sample_metadata_files
-                    and self.data_files[split][i] in self.sample_metadata_files
-                ):
-                    self.data_files[split].pop(i)
-                    self.data_files[split].origin_metadata.pop(i)
-                elif (
-                    self.feature_metadata_files
-                    and self.data_files[split][i] in self.feature_metadata_files
-                ):
-                    self.data_files[split].pop(i)
-                    self.data_files[split].origin_metadata.pop(i)
-
-        self.data_kwargs = self._get_builder_kwargs(self.data_files)
+                metadata_files = DataFilesPatternsList.from_patterns(
+                    metadata_patterns,
+                    allowed_extensions=self.ALLOWED_METADATA_EXTENSIONS,
+                ).resolve(data_dir)
+            processed_metadata_files[split] = metadata_files
+        return DataFilesDict(processed_metadata_files)
 
     def _get_builder_kwargs(self, files):
         if files is None:
@@ -638,8 +635,6 @@ class BioData(datasets.ArrowBasedBuilder):
         return splits
 
     def _set_labels(self, tbl, labels=None):
-        from biosets.data_handling import DataHandler
-
         def fn(tbl, labels, all_labels):
             lab2int = {label: i for i, label in enumerate(labels)}
             all_labels = [lab2int.get(label, -1) for label in all_labels]
@@ -709,7 +704,6 @@ class BioData(datasets.ArrowBasedBuilder):
 
     def _generate_tables(self, generator: "ArrowBasedBuilder", *args, **gen_kwargs):
         """Generate tables from a list of generators."""
-        from biosets.data_handling import DataHandler
 
         feature_metadata = None
         if self.config.feature_metadata_files:
@@ -933,8 +927,6 @@ class BioData(datasets.ArrowBasedBuilder):
             yield key, table
 
     def _load_metadata(self, file_index, sample_metadata=None):
-        from biosets.data_handling import DataHandler
-
         if self.config.sample_metadata_files:
             if len(self.config.sample_metadata_files) == 1 or isinstance(
                 self.config.sample_metadata_files, str
