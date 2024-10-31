@@ -1,30 +1,30 @@
-"""
-NOTE: The contents of this file have been inlined from the fingerprint and _dill module in the datasets package's source code
-https://github.com/huggingface/datasets/blob/c47cc141c9e6e0edafffdcfde55b171612f1de76/src/datasets/fingerprint.py
-
-This module has fixes / adaptations for genOmicsML use cases that make it different from the original
-datasets library
-
-The following modifications have been made:
-    - Added python source code parsing logic to the `Hasher` class. This is used to hash the contents of a python file
-      without comments since we only care about the code that is actually executed.
-
-datasets
-~~~~~~~~
-Copyright 2023 The HuggingFace Team. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+# NOTE: The contents of this file have been inlined from the fingerprint and _dill
+# module in the datasets package's source code
+# https://github.com/huggingface/datasets/blob/c47cc141c9e6e0edafffdcfde55b171612f1de76/src/datasets/fingerprint.py
+#
+# This module has fixes / adaptations for this software's use cases that make it
+# different from the original datasets library
+#
+# The following modifications have been made:
+#     - Added python source code parsing logic to the `Hasher` class. This is used to
+#       hash the contents of a python file without comments since we only care about
+#       the code that is actually executed.
+#
+# datasets
+# ~~~~~~~~
+# Copyright 2023 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import importlib
 import inspect
@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Union
 
 import datasets.utils.file_utils
 import xxhash
+from biocore.data_handling import DataHandler, get_data_format
 from datasets.fingerprint import generate_random_fingerprint
 from datasets.packaged_modules import _hash_python_lines
 from datasets.utils._dill import dumps
@@ -173,8 +174,6 @@ def fingerprint_from_kwargs(fingerprint, kwargs):
 
 
 def fingerprint_from_data(data):
-    from biosets.data_handling import DataHandler, get_data_format
-
     if hasattr(data, "_fingerprint"):
         return data._fingerprint
     if hasattr(data, "fingerprint"):

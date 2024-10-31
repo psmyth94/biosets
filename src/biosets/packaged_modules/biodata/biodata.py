@@ -1,8 +1,8 @@
-import copy
 import inspect
 import itertools
 import json
 import os
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
@@ -12,7 +12,13 @@ import pandas as pd
 import pandas.api.types as pdt
 import pyarrow as pa
 import pyarrow.json as paj
-from datasets.data_files import DataFilesDict, DataFilesPatternsList, sanitize_patterns
+from biocore.data_handling import DataHandler
+from datasets.data_files import (
+    DataFilesDict,
+    DataFilesList,
+    DataFilesPatternsList,
+    sanitize_patterns,
+)
 from datasets.features.features import ClassLabel, Features, Value
 from datasets.naming import INVALID_WINDOWS_CHARACTERS_IN_PATH
 from datasets.packaged_modules.arrow import arrow as hf_arrow

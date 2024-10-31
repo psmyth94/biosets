@@ -3,9 +3,9 @@ from typing import Callable, List, Optional
 
 import datasets
 import datasets.data_files
+from biocore.utils.import_util import _fsspec_version
 from packaging import version
 
-from biosets.utils.import_util import _fsspec_version
 from biosets.utils import logging
 
 logger = logging.get_logger(__name__)

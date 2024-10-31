@@ -1,12 +1,11 @@
-"""
-This file is adapted from the datasets library, which in turn is adapted from the AllenNLP library.
-
-datasets
-~~~~~~~~
-Utilities for working with the local dataset cache.
-This file is adapted from the AllenNLP library at https://github.com/allenai/allennlp
-Copyright by the AllenNLP authors.
-"""
+# This file is adapted from the datasets library, which in turn is adapted from the
+# AllenNLP library.
+#
+# datasets
+# ~~~~~~~~
+# Utilities for working with the local dataset cache.
+# This file is adapted from the AllenNLP library at https://github.com/allenai/allennlp
+# Copyright by the AllenNLP authors.
 
 import io
 import os

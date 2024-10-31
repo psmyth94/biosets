@@ -1,38 +1,37 @@
+# Copyright (c) 2024, Government of Canada
+#
+# NOTE: The contents of this file have been inlined from the gorilla package's source code
+# https://github.com/christophercrouzet/gorilla/blob/v0.3.0/gorilla.py
+#
+# This module has fixes / adaptations for MLflow use cases that make it different from the original
+# gorilla library
+#
+# The following modifications have been made:
+#     - Modify `get_original_attribute` logic, search from children classes to parent classes,
+#       and for each class check "_gorilla_original_{attr_name}" attribute first.
+#       first. This will ensure get the correct original attribute in any cases, e.g.,
+#       the case some classes in the hierarchy haven't been patched, but some others are
+#       patched, this case the previous code is risky to get wrong original attribute.
+#     - Make `get_original_attribute` support bypassing descriptor protocol.
+#     - remove `get_attribute` method, use `get_original_attribute` with
+#       `bypass_descriptor_protocol=True` instead of calling it.
+#     - After reverting patch, there will be no side-effect, restore object to be exactly the
+#       original status.
+#     - Remove `create_patches` and `patches` methods.
+#
+# gorilla
+# ~~~~~~~
 #                     __ __ __
 #   .-----.-----.----|__|  |  .---.-.
 #   |  _  |  _  |   _|  |  |  |  _  |
 #   |___  |_____|__| |__|__|__|___._|
 #   |_____|
 #
-
-"""
-NOTE: The contents of this file have been inlined from the gorilla package's source code
-https://github.com/christophercrouzet/gorilla/blob/v0.3.0/gorilla.py
-
-This module has fixes / adaptations for MLflow use cases that make it different from the original
-gorilla library
-
-The following modifications have been made:
-    - Modify `get_original_attribute` logic, search from children classes to parent classes,
-      and for each class check "_gorilla_original_{attr_name}" attribute first.
-      first. This will ensure get the correct original attribute in any cases, e.g.,
-      the case some classes in the hierarchy haven't been patched, but some others are
-      patched, this case the previous code is risky to get wrong original attribute.
-    - Make `get_original_attribute` support bypassing descriptor protocol.
-    - remove `get_attribute` method, use `get_original_attribute` with
-      `bypass_descriptor_protocol=True` instead of calling it.
-    - After reverting patch, there will be no side-effect, restore object to be exactly the
-      original status.
-    - Remove `create_patches` and `patches` methods.
-
-gorilla
-~~~~~~~
-
-Convenient approach to monkey patching.
-
-:copyright: Copyright 2014-2017 by Christopher Crouzet.
-:license: MIT, see LICENSE for details.
-"""
+#
+# Convenient approach to monkey patching.
+#
+# :copyright: Copyright 2014-2017 by Christopher Crouzet.
+# :license: MIT, see LICENSE for details.
 
 import base64
 import collections

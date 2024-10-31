@@ -8,6 +8,11 @@ from pathlib import Path
 from typing import List, Union
 
 import pyarrow as pa
+from biocore.utils.import_util import (
+    is_rpy2_arrow_available,
+    is_rpy2_available,
+    requires_backends,
+)
 from datasets import arrow_writer
 from datasets.features.features import (
     Features,
@@ -17,11 +22,6 @@ from datasets.features.features import (
 from packaging import version
 
 from biosets import config
-from biosets.utils.import_util import (
-    is_rpy2_arrow_available,
-    is_rpy2_available,
-    requires_backends,
-)
 
 from . import logging
 from .file_utils import move_temp_file
