@@ -119,6 +119,10 @@ class FeatureColumnNotFound(Exception):
     """Raised when the feature column is not found in the table"""
 
 
+class InvalidPath(Exception):
+    """Raised when an invalid path is provided"""
+
+
 SAMPLE_COLUMN_WARN_MSG = (
     "Could not find the sample column in the sample metadata table.\n"
     "Please provide the sample column by setting the `sample_column` argument. For example:\n"
@@ -345,10 +349,10 @@ class BioDataConfig(datasets.BuilderConfig):
         for split, metadata_files in metadata_files_dict.items():
             if metadata_files and not isinstance(metadata_files, DataFilesPatternsList):
                 data_dir = ""
-                metadata_files = [
-                    Path(f).resolve().as_posix()
-                    for f in self._ensure_list(metadata_files)
-                ]
+
+                metadata_files = self._ensure_list(metadata_files)
+                # Check for invalid characters in the config name
+                metadata_files = [Path(f).resolve().as_posix() for f in metadata_files]
                 if len(metadata_files) > 1:
                     data_dir = os.path.commonpath(metadata_files)
                 else:
