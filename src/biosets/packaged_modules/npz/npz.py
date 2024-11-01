@@ -6,11 +6,12 @@ import datasets
 import datasets.config
 import pandas as pd
 import pyarrow as pa
+from biocore.utils.import_util import requires_backends
 from datasets.features.features import require_storage_cast
 from datasets.table import table_cast
 from datasets.utils.file_utils import xnumpy_load
 
-from biosets.utils import logging, requires_backends
+from biosets.utils import logging
 
 logger = logging.get_logger(__name__)
 

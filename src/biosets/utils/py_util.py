@@ -4,8 +4,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 import numpy as np
-
-from .import_util import (
+from biocore.utils.import_util import (
     is_polars_available,
     is_tf_available,
     is_torch_available,
