@@ -37,7 +37,6 @@ from biosets.utils import (
     logging,
     upcast_tables,
 )
-from biocore.utils.import_util import is_polars_available
 
 from ...data_files import (
     FEATURE_METADATA_FILENAMES,
@@ -709,6 +708,124 @@ class BioData(datasets.ArrowBasedBuilder):
 
         return tbl
 
+    def _add_sample_metadata(self, table, sample_metadata=None):
+        if self.config.sample_metadata_files:
+            if self.config.sample_column in table.column_names:
+                colliding_names = list(
+                    (set(table.column_names) & set(sample_metadata.columns))
+                    - set([self.config.sample_column])
+                )
+                if isinstance(sample_metadata, pd.DataFrame):
+                    pd_table: pd.DataFrame = table.drop(colliding_names).to_pandas()
+                    tbl_cols = [
+                        c for c in pd_table.columns if c != self.config.sample_column
+                    ]
+                    col_order = list(sample_metadata.columns) + tbl_cols
+                    table = pa.Table.from_pandas(
+                        pd_table.merge(
+                            sample_metadata,
+                            how="left",
+                            on=self.config.sample_column,
+                        ).reindex(columns=col_order),
+                        preserve_index=False,
+                    )
+                else:
+                    import polars as pl
+
+                    pl_table = pl.from_arrow(table.drop(colliding_names))
+                    tbl_cols = [
+                        c for c in pl_table.columns if c != self.config.sample_column
+                    ]
+                    col_order = sample_metadata.columns + tbl_cols
+                    table = (
+                        pl_table.join(
+                            sample_metadata,
+                            on=self.config.sample_column,
+                            how="left",
+                        )
+                        .select(col_order)
+                        .to_arrow()
+                    )
+            else:
+                # we are gonna assume that the row order in metadata is the same as the data
+                colliding_names = list(
+                    (set(table.column_names) & set(sample_metadata.columns))
+                )
+                if isinstance(sample_metadata, pd.DataFrame):
+                    # concat the table without join, making sure that colliding columns are dropped
+                    pd_table: pd.DataFrame = table.drop(colliding_names).to_pandas()
+                    new_cols = (
+                        pd_table.columns.tolist() + sample_metadata.columns.tolist()
+                    )
+                    table = pa.Table.from_pandas(
+                        pd.concat(
+                            [pd_table, sample_metadata],
+                            axis=1,
+                            ignore_index=True,
+                        ),
+                        preserve_index=False,
+                    )
+                    table = DataHandler.set_column_names(table, new_cols)
+                else:
+                    import polars as pl
+
+                    pl_table = pl.from_arrow(table.drop(colliding_names))
+                    table = pl.concat(
+                        [sample_metadata, pl_table], how="horizontal"
+                    ).to_arrow()
+        return table
+
+    def _prepare_labels(self, table, sample_metadata=None, split_name=None):
+        if self.config.target_column:
+            labels = self.config.labels
+            if (
+                not self.config.positive_labels
+                and not self.config.negative_labels
+                and not self.config.labels
+            ):
+                if (
+                    self.config.sample_metadata_files
+                    and len(self.config.sample_metadata_files.get(split_name, [])) == 1
+                    and self.config.target_column
+                    in DataHandler.get_column_names(sample_metadata)
+                ):
+                    all_labels = DataHandler.to_list(
+                        DataHandler.select_column(
+                            sample_metadata, self.config.target_column
+                        )
+                    )
+                    labels = list(set(all_labels))
+                elif len(
+                    self.config.data_files[split_name]
+                ) == 1 and self.config.target_column in DataHandler.get_column_names(
+                    table
+                ):
+                    all_labels = DataHandler.to_list(
+                        DataHandler.select_column(table, self.config.target_column)
+                    )
+                    labels = list(set(all_labels))
+                else:
+                    if (
+                        sample_metadata is not None
+                        and self.config.target_column
+                        in DataHandler.get_column_names(sample_metadata)
+                    ):
+                        raise ValueError(
+                            "Labels must be provided if multiple sample metadata files "
+                            "are provided. Either set `labels`, `positive_labels` "
+                            "and/or `negative_labels` in `load_dataset`."
+                        )
+                    else:
+                        raise ValueError(
+                            "Labels must be provided if multiple data files "
+                            "are provided and the target column is found in the "
+                            "data table. Either set `labels`, `positive_labels` "
+                            "and/or `negative_labels` in `load_dataset`."
+                        )
+
+            table = self._set_labels(table, labels=labels)
+        return table
+
     def _generate_tables(self, generator: "ArrowBasedBuilder", *args, **gen_kwargs):
         """Generate tables from a list of generators."""
 
@@ -773,123 +890,8 @@ class BioData(datasets.ArrowBasedBuilder):
                         "of columns in the data table. Ignoring feature metadata."
                     )
 
-            if self.config.sample_metadata_files:
-                if self.config.sample_column in table.column_names:
-                    colliding_names = list(
-                        (set(table.column_names) & set(sample_metadata.columns))
-                        - set([self.config.sample_column])
-                    )
-                    if isinstance(sample_metadata, pd.DataFrame):
-                        pd_table: pd.DataFrame = table.drop(colliding_names).to_pandas()
-                        tbl_cols = [
-                            c
-                            for c in pd_table.columns
-                            if c != self.config.sample_column
-                        ]
-                        col_order = list(sample_metadata.columns) + tbl_cols
-                        table = pa.Table.from_pandas(
-                            pd_table.merge(
-                                sample_metadata,
-                                how="left",
-                                on=self.config.sample_column,
-                            ).reindex(columns=col_order),
-                            preserve_index=False,
-                        )
-                    else:
-                        import polars as pl
-
-                        pl_table = pl.from_arrow(table.drop(colliding_names))
-                        tbl_cols = [
-                            c
-                            for c in pl_table.columns
-                            if c != self.config.sample_column
-                        ]
-                        col_order = sample_metadata.columns + tbl_cols
-                        table = (
-                            pl_table.join(
-                                sample_metadata,
-                                on=self.config.sample_column,
-                                how="left",
-                            )
-                            .select(col_order)
-                            .to_arrow()
-                        )
-                else:
-                    # we are gonna assume that the row order in metadata is the same as the data
-                    colliding_names = list(
-                        (set(table.column_names) & set(sample_metadata.columns))
-                    )
-                    if isinstance(sample_metadata, pd.DataFrame):
-                        # concat the table without join, making sure that colliding columns are dropped
-                        pd_table: pd.DataFrame = table.drop(colliding_names).to_pandas()
-                        new_cols = (
-                            pd_table.columns.tolist() + sample_metadata.columns.tolist()
-                        )
-                        table = pa.Table.from_pandas(
-                            pd.concat(
-                                [pd_table, sample_metadata],
-                                axis=1,
-                                ignore_index=True,
-                            ),
-                            preserve_index=False,
-                        )
-                        table = DataHandler.set_column_names(table, new_cols)
-                    else:
-                        import polars as pl
-
-                        pl_table = pl.from_arrow(table.drop(colliding_names))
-                        table = pl.concat(
-                            [sample_metadata, pl_table], how="horizontal"
-                        ).to_arrow()
-
-            if self.config.target_column:
-                labels = self.config.labels
-                if (
-                    not self.config.positive_labels
-                    and not self.config.negative_labels
-                    and not self.config.labels
-                ):
-                    if (
-                        self.config.sample_metadata_files
-                        and len(self.config.sample_metadata_files) == 1
-                        and self.config.target_column
-                        in DataHandler.get_column_names(sample_metadata)
-                    ):
-                        all_labels = DataHandler.to_list(
-                            DataHandler.select_column(
-                                sample_metadata, self.config.target_column
-                            )
-                        )
-                        labels = list(set(all_labels))
-                    elif (
-                        len(self.config.data_files[split_name]) == 1
-                        and self.config.target_column
-                        in DataHandler.get_column_names(table)
-                    ):
-                        all_labels = DataHandler.to_list(
-                            DataHandler.select_column(table, self.config.target_column)
-                        )
-                        labels = list(set(all_labels))
-                    else:
-                        if (
-                            sample_metadata is not None
-                            and self.config.target_column
-                            in DataHandler.get_column_names(sample_metadata)
-                        ):
-                            raise ValueError(
-                                "Labels must be provided if multiple sample metadata files "
-                                "are provided. Either set `labels`, `positive_labels` "
-                                "and/or `negative_labels` in `load_dataset`."
-                            )
-                        else:
-                            raise ValueError(
-                                "Labels must be provided if multiple data files "
-                                "are provided and the target column is found in the "
-                                "data table. Either set `labels`, `positive_labels` "
-                                "and/or `negative_labels` in `load_dataset`."
-                            )
-
-                table = self._set_labels(table, labels=labels)
+            table = self._add_sample_metadata(table, sample_metadata)
+            table = self._prepare_labels(table, sample_metadata, split_name=split_name)
             # table = self._prepare_data(table)
             metadata_schema = None
             if b"huggingface" in stored_metadata_schema:
@@ -1383,8 +1385,8 @@ def _infer_column_name(
         if other_possible_col:
             logger.warning_once(
                 f"Two possible matches found for the {default_column_name} column:\n"
-                f"1. {possible_col} in {which_table} table\n"
-                f"2. {other_possible_col} in {other_table} table\n"
+                f"1. '{possible_col}' in {which_table} table\n"
+                f"2. '{other_possible_col}' in {other_table} table\n"
                 "Please rename the columns or provide the `sample_column` argument to "
                 "avoid ambiguity.\n"
                 f"Using the {default_column_name} column detected from the "
@@ -1393,7 +1395,7 @@ def _infer_column_name(
         else:
             logger.warning_once(
                 f"A match for the {default_column_name} column was found in "
-                f"{which_table} table: {possible_col}\n"
+                f"{which_table} table: '{possible_col}'\n"
                 f"But it was not found in {other_table} table.\n"
                 "Please add or rename the column in the appropriate table.\n"
                 f"Using the {default_column_name} column detected from the "

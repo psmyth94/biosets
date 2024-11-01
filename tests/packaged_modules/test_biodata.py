@@ -124,6 +124,23 @@ def sample_metadata_file_2(tmp_path):
 
 
 @pytest.fixture
+def sample_metadata_file_combined(tmp_path):
+    filename = tmp_path / "sample_metadata_combined.csv"
+    data = textwrap.dedent(
+        """
+        sample,batch,metadata1,metadata2,target
+        sample1,batch1,a,2,a
+        sample2,batch2,b,20,b
+        sample3,batch3,c,3,c
+        sample4,batch4,d,40,d
+        """
+    )
+    with open(filename, "w") as f:
+        f.write(data)
+    return str(filename)
+
+
+@pytest.fixture
 def feature_metadata_file(tmp_path):
     filename = tmp_path / "feature_metadata.csv"
     data = textwrap.dedent(
@@ -186,6 +203,38 @@ def data_with_samples(tmp_path):
 
 
 @pytest.fixture
+def data_with_samples_2(tmp_path):
+    filename = tmp_path / "data_with_samples_2.csv"
+    data = textwrap.dedent(
+        """
+        sample,header1,header2
+        sample3,3,4
+        sample4,30,40
+        """
+    )
+    with open(filename, "w") as f:
+        f.write(data)
+    return str(filename)
+
+
+@pytest.fixture
+def data_with_samples_combined(tmp_path):
+    filename = tmp_path / "data_with_samples_combined.csv"
+    data = textwrap.dedent(
+        """
+        sample,header1,header2
+        sample1,1,2
+        sample2,10,20
+        sample3,3,4
+        sample4,30,40
+        """
+    )
+    with open(filename, "w") as f:
+        f.write(data)
+    return str(filename)
+
+
+@pytest.fixture
 def feature_metadata_missing_sample_column(tmp_path):
     filename = tmp_path / "feature_metadata_missing_sample_column.csv"
     data = textwrap.dedent(
@@ -221,8 +270,8 @@ def data_with_metadata(tmp_path):
     data = textwrap.dedent(
         """
         sample,metadata1,metadata2,header1,header2,target
-        sample1,1,2,1,2,a
-        sample2,10,20,10,20,b
+        sample1,a,2,1,2,a
+        sample2,b,20,10,20,b
         """
     )
     with open(filename, "w") as f:
@@ -604,7 +653,7 @@ class TestBioDataConfig(unittest.TestCase):
         )
         self.assertIsInstance(config.feature_metadata_files, DataFilesDict)
 
-    def test_post_init_with_multi_sample_metadata_and_one_data_files(self):
+    def test_post_init_with_multi_sample_metadata_and_one_data_file(self):
         self.create_config(
             data_files=[self.csv_file],
             sample_metadata_files=[
@@ -613,13 +662,13 @@ class TestBioDataConfig(unittest.TestCase):
             ],
         )
 
-    def test_post_init_with_multi_data_and_one_sample_metadata_data_files(self):
+    def test_post_init_with_multi_data_and_one_sample_metadata_data_file(self):
         self.create_config(
             data_files=[self.csv_file, self.csv_file],
             sample_metadata_files=self.sample_metadata_file,
         )
 
-    def test_post_init_with_missing_key_in_sample_metadata_files(self):
+    def test_post_init_with_nonexistent_key_in_sample_metadata_files(self):
         with self.assertRaises(ValueError) as context:
             self.create_config(
                 data_files=[self.csv_file, self.csv_file],
@@ -636,7 +685,7 @@ class TestBioDataConfig(unittest.TestCase):
             str(context.exception),
         )
 
-    def test_post_init_with_missing_key_in_feature_metadata_files(self):
+    def test_post_init_with_nonexistent_key_in_feature_metadata_files(self):
         with self.assertRaises(ValueError) as context:
             self.create_config(
                 data_files=[self.csv_file, self.csv_file],
@@ -667,6 +716,52 @@ class TestBioDataConfig(unittest.TestCase):
             "The number of sharded sample metadata files must match the number "
             "of sharded data files in split 'train'.",
             str(context.exception),
+        )
+
+    def test_post_init_with_missing_key_in_sample_metadata_files(self):
+        self.create_config(
+            data_files={
+                "train": [self.csv_file, self.csv_file],
+                "test": [self.csv_file, self.csv_file],
+            },
+            sample_metadata_files={
+                "train": [self.sample_metadata_file, self.sample_metadata_file],
+            },
+        )
+
+    def test_post_init_with_matching_keys_in_sample_metadata_files(self):
+        self.create_config(
+            data_files={
+                "train": [self.csv_file, self.csv_file],
+                "test": [self.csv_file, self.csv_file],
+            },
+            sample_metadata_files={
+                "train": [self.sample_metadata_file, self.sample_metadata_file],
+                "test": [self.sample_metadata_file, self.sample_metadata_file],
+            },
+        )
+
+    def test_post_init_with_missing_key_in_feature_metadata_files(self):
+        self.create_config(
+            data_files={
+                "train": [self.csv_file, self.csv_file],
+                "test": [self.csv_file, self.csv_file],
+            },
+            feature_metadata_files={
+                "train": [self.feature_metadata_file, self.feature_metadata_file],
+            },
+        )
+
+    def test_post_init_with_matching_keys_in_feature_metadata_files(self):
+        self.create_config(
+            data_files={
+                "train": [self.csv_file, self.csv_file],
+                "test": [self.csv_file, self.csv_file],
+            },
+            feature_metadata_files={
+                "train": [self.feature_metadata_file, self.feature_metadata_file],
+                "test": [self.feature_metadata_file, self.feature_metadata_file],
+            },
         )
 
     def test_get_builder_kwargs_none_files(self):
@@ -738,10 +833,13 @@ class TestBioData(unittest.TestCase):
         npz_file,
         sample_metadata_file,
         sample_metadata_file_2,
+        sample_metadata_file_combined,
         feature_metadata_file,
         multiclass,
         data_with_index_missing_sample_column,
         data_with_samples,
+        data_with_samples_2,
+        data_with_samples_combined,
         feature_metadata_missing_sample_column,
         feature_metadata_matching_sample_column_index,
         data_with_metadata,
@@ -755,12 +853,15 @@ class TestBioData(unittest.TestCase):
         self.npz_file = npz_file
         self.sample_metadata_file = sample_metadata_file
         self.sample_metadata_file_2 = sample_metadata_file_2
+        self.sample_metadata_file_combined = sample_metadata_file_combined
         self.feature_metadata_file = feature_metadata_file
         self.multiclass = multiclass
         self.data_with_index_missing_sample_column = (
             data_with_index_missing_sample_column
         )
         self.data_with_samples = data_with_samples
+        self.data_with_samples_2 = data_with_samples_2
+        self.data_with_samples_combined = data_with_samples_combined
         self.feature_metadata_missing_header = feature_metadata_missing_sample_column
         self.feature_metadata_matching_sample_column_index = (
             feature_metadata_matching_sample_column_index
@@ -1035,7 +1136,7 @@ class TestBioData(unittest.TestCase):
             other_table = "data"
             msg = (
                 f"A match for the {default_column_name} column was found in "
-                f"{which_table} table: {possible_col}\n"
+                f"{which_table} table: '{possible_col}'\n"
                 f"But it was not found in {other_table} table.\n"
                 "Please add or rename the column in the appropriate table.\n"
                 f"Using the {default_column_name} column detected from the "
@@ -1075,7 +1176,6 @@ class TestBioData(unittest.TestCase):
             feature_metadata_files=self.feature_metadata_missing_header,
         )
         biodata.INPUT_FEATURE = Abundance
-        biodata.config.feature_metadata_files = [self.feature_metadata_missing_header]
         reader = Csv()
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
@@ -1099,8 +1199,6 @@ class TestBioData(unittest.TestCase):
             feature_metadata_files=self.feature_metadata_file,
         )
         biodata.INPUT_FEATURE = Abundance
-        biodata.config.feature_metadata_files = [self.feature_metadata_file]
-        biodata.config.feature_column = "feature"
         reader = Csv()
         generator = biodata._generate_tables(
             reader, [[self.data_with_samples]], split_name="train"
@@ -1119,10 +1217,6 @@ class TestBioData(unittest.TestCase):
         )
         biodata = BioData(data_files=data_files)
         biodata.INPUT_FEATURE = Abundance
-        biodata.config.sample_metadata_files = [
-            self.sample_metadata_file,
-        ]
-        biodata.config.sample_column = "sample"
         reader = Csv()
         generator = biodata._generate_tables(
             reader, [[self.data_with_metadata]], split_name="train"
@@ -1143,10 +1237,10 @@ class TestBioData(unittest.TestCase):
                 )
             }
         )
-        biodata = BioData(data_files=data_files)
+        biodata = BioData(
+            data_files=data_files, sample_metadata_files=self.sample_metadata_file
+        )
         biodata.INPUT_FEATURE = Abundance
-        biodata.config.sample_metadata_files = [self.sample_metadata_file]
-        biodata.config.sample_column = "sample_id"
         reader = Csv()
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
@@ -1156,7 +1250,12 @@ class TestBioData(unittest.TestCase):
             )
             pa.concat_tables([table for _, table in generator])
             self.assertIn(
-                "was found in the data table but not in the metadata table",
+                "Two possible matches found for the samples column:\n"
+                "1. 'sample' in metadata table\n"
+                "2. 'sample_id' in data table\n"
+                "Please rename the columns or provide the `sample_column` argument to "
+                "avoid ambiguity.\n"
+                "Using the samples column detected from the metadata table.",
                 log.output[0],
             )
 
@@ -1171,9 +1270,6 @@ class TestBioData(unittest.TestCase):
             feature_metadata_files=self.feature_metadata_with_missing_header,
         )
         biodata.INPUT_FEATURE = Abundance
-        biodata.config.feature_metadata_files = [
-            self.feature_metadata_with_missing_header
-        ]
         reader = Csv()
         generator = biodata._generate_tables(
             reader, [[self.data_with_samples]], split_name="train"
@@ -1191,9 +1287,6 @@ class TestBioData(unittest.TestCase):
             feature_metadata_files=self.feature_metadata_with_missing_feature_column,
         )
         biodata.INPUT_FEATURE = Abundance
-        biodata.config.feature_metadata_files = [
-            self.feature_metadata_with_missing_feature_column
-        ]
         reader = Csv()
         with self.assertLogs(
             "biosets.packaged_modules.biodata.biodata", level="WARNING"
@@ -1206,10 +1299,14 @@ class TestBioData(unittest.TestCase):
                 "Could not find the features column in metadata table", log.output[0]
             )
 
-    def test_generate_tables_with_unequal_sample_metadata_and_data_files(self):
+    def test_generate_tables_with_sharded_sample_metadata_and_data_files(self):
         origin_metadata = _get_origin_metadata([self.data_with_samples])
         data_files = DataFilesDict(
-            {"train": DataFilesList([self.data_with_samples], origin_metadata)}
+            {
+                "train": DataFilesList(
+                    [self.data_with_samples, self.data_with_samples_2], origin_metadata
+                )
+            }
         )
         biodata = BioData(
             data_files=data_files,
@@ -1220,17 +1317,152 @@ class TestBioData(unittest.TestCase):
         )
         biodata.INPUT_FEATURE = Abundance
         reader = Csv()
-        with self.assertLogs(
-            "biosets.packaged_modules.biodata.biodata", level="WARNING"
-        ) as log:
-            generator = biodata._generate_tables(
-                reader, [[self.data_with_samples]], split_name="train"
-            )
-            pa.concat_tables([table for _, table in generator])
-            self.assertIn(
-                "The number of sample metadata files does not match the number of data files.",
-                log.output[0],
-            )
+        generator = biodata._generate_tables(
+            reader,
+            [[self.data_with_samples, self.data_with_samples_2]],
+            split_name="train",
+        )
+        pa_table = pa.concat_tables([table for _, table in generator])
+
+        self.assertIn("sample", pa_table.column_names)
+        self.assertEqual(pa_table.num_rows, 4)
+        self.assertEqual(
+            pa_table.column("sample").to_pylist(),
+            ["sample1", "sample2", "sample3", "sample4"],
+        )
+        self.assertEqual(pa_table.column("header1").to_pylist(), [1, 10, 3, 30])
+        self.assertEqual(pa_table.column("header2").to_pylist(), [2, 20, 4, 40])
+
+    def test_generate_tables_with_sharded_sample_metadata_only(self):
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
+        data_files = DataFilesDict(
+            {"train": DataFilesList([self.data_with_samples_combined], origin_metadata)}
+        )
+        biodata = BioData(
+            data_files=data_files,
+            sample_metadata_files=[
+                self.sample_metadata_file,
+                self.sample_metadata_file_2,
+            ],
+        )
+        biodata.INPUT_FEATURE = Abundance
+        reader = Csv()
+        generator = biodata._generate_tables(
+            reader,
+            [[self.data_with_samples, self.data_with_samples_2]],
+            split_name="train",
+        )
+        pa_table = pa.concat_tables([table for _, table in generator])
+
+        self.assertIn("sample", pa_table.column_names)
+        self.assertEqual(pa_table.num_rows, 4)
+        self.assertEqual(
+            pa_table.column("sample").to_pylist(),
+            ["sample1", "sample2", "sample3", "sample4"],
+        )
+        self.assertEqual(pa_table.column("header1").to_pylist(), [1, 10, 3, 30])
+        self.assertEqual(pa_table.column("header2").to_pylist(), [2, 20, 4, 40])
+
+    def test_generate_tables_with_sharded_data_files_only(self):
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
+        data_files = DataFilesDict(
+            {
+                "train": DataFilesList(
+                    [self.data_with_samples, self.data_with_samples_2], origin_metadata
+                )
+            }
+        )
+        biodata = BioData(
+            data_files=data_files,
+            sample_metadata_files=self.sample_metadata_file_combined,
+        )
+        biodata.INPUT_FEATURE = Abundance
+        reader = Csv()
+        generator = biodata._generate_tables(
+            reader,
+            [[self.data_with_samples, self.data_with_samples_2]],
+            split_name="train",
+        )
+        pa_table = pa.concat_tables([table for _, table in generator])
+
+        self.assertIn("sample", pa_table.column_names)
+        self.assertEqual(pa_table.num_rows, 4)
+        self.assertEqual(
+            pa_table.column("sample").to_pylist(),
+            ["sample1", "sample2", "sample3", "sample4"],
+        )
+        self.assertEqual(pa_table.column("metadata1").to_pylist(), ["a", "b", "c", "d"])
+        self.assertEqual(pa_table.column("metadata2").to_pylist(), [2, 20, 3, 40])
+        self.assertEqual(pa_table.column("header1").to_pylist(), [1, 10, 3, 30])
+        self.assertEqual(pa_table.column("header2").to_pylist(), [2, 20, 4, 40])
+
+    def test_generate_tables_with_missing_samples_in_sample_metadata(self):
+        """
+        When samples are missing in the sample metadata file, which are found in the
+        data, the final table should ADD the columns from the sample metadata file
+        as None values.
+        """
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
+        data_files = DataFilesDict(
+            {"train": DataFilesList([self.data_with_samples_combined], origin_metadata)}
+        )
+        biodata = BioData(
+            data_files=data_files,
+            sample_metadata_files=self.sample_metadata_file,
+        )
+        biodata.INPUT_FEATURE = Abundance
+        reader = Csv()
+        generator = biodata._generate_tables(
+            reader,
+            [[self.data_with_samples_combined]],
+            split_name="train",
+        )
+        pa_table = pa.concat_tables([table for _, table in generator])
+
+        self.assertIn("sample", pa_table.column_names)
+        self.assertEqual(pa_table.num_rows, 4)
+        self.assertEqual(
+            pa_table.column("sample").to_pylist(),
+            ["sample1", "sample2", "sample3", "sample4"],
+        )
+        self.assertEqual(
+            pa_table.column("metadata1").to_pylist(), ["a", "b", None, None]
+        )
+        self.assertEqual(pa_table.column("metadata2").to_pylist(), [2, 20, None, None])
+        self.assertEqual(pa_table.column("header1").to_pylist(), [1, 10, 3, 30])
+        self.assertEqual(pa_table.column("header2").to_pylist(), [2, 20, 4, 40])
+
+    def test_generate_tables_with_missing_samples_in_data_files(self):
+        """
+        When samples are missing in the data file, which are found in the sample
+        metadata, the final table should IGNORE the samples that are not present in
+        the data file.
+        """
+        origin_metadata = _get_origin_metadata([self.data_with_samples])
+        data_files = DataFilesDict(
+            {"train": DataFilesList([self.data_with_samples], origin_metadata)}
+        )
+        biodata = BioData(
+            data_files=data_files,
+            sample_metadata_files=self.sample_metadata_file_combined,
+        )
+        biodata.INPUT_FEATURE = Abundance
+        reader = Csv()
+        generator = biodata._generate_tables(
+            reader, [[self.data_with_samples]], split_name="train"
+        )
+        pa_table = pa.concat_tables([table for _, table in generator])
+
+        self.assertIn("sample", pa_table.column_names)
+        self.assertEqual(pa_table.num_rows, 2)
+        self.assertEqual(
+            pa_table.column("sample").to_pylist(),
+            ["sample1", "sample2"],
+        )
+        self.assertEqual(pa_table.column("metadata1").to_pylist(), ["a", "b"])
+        self.assertEqual(pa_table.column("metadata2").to_pylist(), [2, 20])
+        self.assertEqual(pa_table.column("header1").to_pylist(), [1, 10])
+        self.assertEqual(pa_table.column("header2").to_pylist(), [2, 20])
 
     def test_abundance_data_loading_binarized(self):
         origin_metadata = _get_origin_metadata([self.multiclass])
@@ -1404,7 +1636,6 @@ class TestBioData(unittest.TestCase):
                 feature_metadata_files=self.feature_metadata_file,
                 target_column="target",
             )["train"]
-
             self.assertIn(
                 "Labels must be provided if multiple sample metadata files "
                 "are provided. Either set `labels`, `positive_labels` "
@@ -1425,7 +1656,7 @@ class TestBioData(unittest.TestCase):
                 "are provided and the target column is found in the "
                 "data table. Either set `labels`, `positive_labels` "
                 "and/or `negative_labels` in `load_dataset`.",
-                str(context.exception),
+                str(context),
             )
 
     def test_biodata_load_dataset_with_multiple_files_and_with_labels(self):
