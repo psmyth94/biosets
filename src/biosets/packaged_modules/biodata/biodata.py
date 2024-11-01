@@ -13,6 +13,7 @@ import pandas.api.types as pdt
 import pyarrow as pa
 import pyarrow.json as paj
 from biocore.data_handling import DataHandler
+from biocore.utils.import_util import is_polars_available
 from datasets.data_files import (
     DataFilesDict,
     DataFilesList,
@@ -711,20 +712,24 @@ class BioData(datasets.ArrowBasedBuilder):
     def _generate_tables(self, generator: "ArrowBasedBuilder", *args, **gen_kwargs):
         """Generate tables from a list of generators."""
 
+        split_name = gen_kwargs.pop("split_name")
         feature_metadata = None
         if self.config.feature_metadata_files:
-            feature_metadata = self._read_metadata(self.config.feature_metadata_files)
+            feature_metadata = self._read_metadata(
+                self.config.feature_metadata_files[split_name]
+            )
 
         check_columns = True
         feature_metadata_dict = None
         # key might not correspond to the current index of the file received (e.g. npz)
         file_index = 0
         sample_metadata = None
-        split_name = gen_kwargs.pop("split_name")
         for key, table in generator._generate_tables(*args, **gen_kwargs):
             stored_metadata_schema = table.schema.metadata or {}
 
-            sample_metadata = self._load_metadata(file_index, sample_metadata)
+            sample_metadata = self._load_metadata(
+                file_index, sample_metadata, split_name=split_name
+            )
             if check_columns:
                 features = table.column_names
                 self = self._set_columns(
@@ -932,20 +937,22 @@ class BioData(datasets.ArrowBasedBuilder):
             file_index += 1
             yield key, table
 
-    def _load_metadata(self, file_index, sample_metadata=None):
+    def _load_metadata(self, file_index, sample_metadata=None, split_name=None):
         if self.config.sample_metadata_files:
-            if len(self.config.sample_metadata_files) == 1 or isinstance(
-                self.config.sample_metadata_files, str
-            ):
+            if not isinstance(self.config.sample_metadata_files, DataFilesDict):
+                raise ValueError(
+                    "Sample metadata files must be a dictionary with split names as keys."
+                )
+            if split_name not in self.config.sample_metadata_files:
+                return None
+
+            files = self.config.sample_metadata_files[split_name]
+            if len(files) == 1:
                 if file_index != 0:
                     return sample_metadata
-
-                if isinstance(self.config.sample_metadata_files, list):
-                    files = self.config.sample_metadata_files
-                else:
-                    files = [self.config.sample_metadata_files]
-            else:
-                files = [self.config.sample_metadata_files[file_index]]
+            # only use file_index if data files are sharded
+            elif len(self.config.data_files[split_name]) > 1:
+                files = [files[file_index]]
 
             sample_metadata = self._read_metadata(files, to_arrow=False)
             # TODO: temporary fix for not getting a pandas DataFrame
@@ -1009,6 +1016,15 @@ class BioData(datasets.ArrowBasedBuilder):
             metadata = []
             for metadata_file in metadata_files:
                 metadata_ext = os.path.splitext(metadata_file)[-1]
+                if metadata_ext not in readers:
+                    if not metadata_ext:
+                        raise ValueError(
+                            "Metadata file has no extension. Please provide a valid extension."
+                        )
+                    raise ValueError(
+                        f"Metadata file extension '{metadata_ext}' is not supported. "
+                        f"Supported extensions are: {', '.join(readers.keys())}"
+                    )
                 reader, kwargs, arrow_converter = readers.get(metadata_ext)
                 data = arrow_converter(reader(metadata_file, **kwargs))
                 metadata.append(data)
