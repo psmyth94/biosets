@@ -1,4 +1,5 @@
 import json
+import os
 import textwrap
 import unittest
 from collections import defaultdict
@@ -8,6 +9,12 @@ import datasets.builder
 import pandas as pd
 import pyarrow as pa
 import pytest
+from biosets.features import Abundance
+from biosets.load import load_dataset
+from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
+from biosets.packaged_modules.csv.csv import Csv
+from biosets.packaged_modules.npz.npz import SparseReader
+from biosets.utils import logging
 from datasets.data_files import (
     DataFilesDict,
     DataFilesList,
@@ -16,13 +23,6 @@ from datasets.data_files import (
 from datasets.exceptions import DatasetGenerationError
 from datasets.features import Features, Value
 from datasets.packaged_modules.json.json import Json
-
-from biosets.features import Abundance
-from biosets.load import load_dataset
-from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
-from biosets.packaged_modules.csv.csv import Csv
-from biosets.packaged_modules.npz.npz import SparseReader
-from biosets.utils import logging
 
 logger = logging.get_logger(__name__)
 
@@ -401,30 +401,20 @@ class TestBioDataConfig(unittest.TestCase):
         self.assertNotIn("test", config.feature_metadata_files)
 
     def test_post_init_with_metadata_dir_and_no_sample_metadata_files(self):
-        # Assuming get_metadata_patterns function returns valid patterns
-        with unittest.mock.patch(
-            "biosets.data_files.get_metadata_patterns"
-        ) as mock_get_patterns:
-            mock_get_patterns.return_value = ["sample_metadata.csv"]
-            config = self.create_config(
-                data_files=self.csv_file,
-                sample_metadata_files=None,
-                sample_metadata_dir="/path/to/sample_metadata_dir",
-            )
-            self.assertIsInstance(config.sample_metadata_files, DataFilesDict)
+        config = self.create_config(
+            data_files=self.csv_file,
+            sample_metadata_files=None,
+            sample_metadata_dir=os.path.dirname(self.sample_metadata_file),
+        )
+        self.assertIsInstance(config.sample_metadata_files, DataFilesDict)
 
     def test_post_init_with_feature_metadata_dir_and_no_feature_metadata_files(self):
-        # Assuming get_feature_metadata_patterns function returns valid patterns
-        with unittest.mock.patch(
-            "biosets.data_files.get_feature_metadata_patterns"
-        ) as mock_get_patterns:
-            mock_get_patterns.return_value = ["feature_metadata.csv"]
-            config = self.create_config(
-                data_files=self.csv_file,
-                feature_metadata_files=None,
-                feature_metadata_dir="/path/to/feature_metadata_dir",
-            )
-            self.assertIsInstance(config.feature_metadata_files, DataFilesDict)
+        config = self.create_config(
+            data_files=self.csv_file,
+            feature_metadata_files=None,
+            feature_metadata_dir=os.path.dirname(self.feature_metadata_file),
+        )
+        self.assertIsInstance(config.feature_metadata_files, DataFilesDict)
 
     def test_post_init_with_nonexistent_metadata_dir(self):
         with self.assertRaises(FileNotFoundError):
@@ -444,7 +434,7 @@ class TestBioDataConfig(unittest.TestCase):
 
     def test_post_init_with_invalid_characters_in_file_paths(self):
         invalid_path = "invalid|path/sample_metadata.csv"
-        with self.assertRaises(ValueError):
+        with self.assertRaises(FileNotFoundError):
             self.create_config(
                 data_files=self.csv_file, sample_metadata_files=invalid_path
             )
@@ -488,8 +478,10 @@ class TestBioDataConfig(unittest.TestCase):
     def test_post_init_with_mismatched_shards_in_sample_metadata_files(self):
         with self.assertRaises(ValueError) as context:
             self.create_config(
-                data_files={"train": [self.csv_file, self.csv_file]},
-                sample_metadata_files={"train": [self.sample_metadata_file]},
+                data_files={"train": [self.csv_file, self.csv_file, self.csv_file]},
+                sample_metadata_files={
+                    "train": [self.sample_metadata_file, self.sample_metadata_file]
+                },
             )
         self.assertIn(
             "The number of sharded sample metadata files must match the number of sharded data files in split 'train'.",
@@ -569,8 +561,11 @@ class TestBioDataConfig(unittest.TestCase):
     def test_post_init_with_sample_metadata_files_as_list_and_mismatched_shards(self):
         with self.assertRaises(ValueError) as context:
             self.create_config(
-                data_files=[self.csv_file, self.csv_file],
-                sample_metadata_files=[self.sample_metadata_file],
+                data_files=[self.csv_file, self.csv_file, self.csv_file],
+                sample_metadata_files=[
+                    self.sample_metadata_file,
+                    self.sample_metadata_file,
+                ],
             )
         self.assertIn(
             "The number of sharded sample metadata files must match the number of sharded data files in split 'train'.",
@@ -607,7 +602,7 @@ class TestBioDataConfig(unittest.TestCase):
                 self.feature_metadata_file,
             ],
         )
-        self.assertIsInstance(config.feature_metadata_files, DataFilesList)
+        self.assertIsInstance(config.feature_metadata_files, DataFilesDict)
 
     def test_post_init_with_multi_sample_metadata_and_one_data_files(self):
         self.create_config(
