@@ -1,127 +1,110 @@
-# BioSets: Dataset Creation for Biological Research
+<p align="center">
+    $${\Huge{\textbf{\textsf{\color{#2E8B57}Bio\color{#4682B4}sets}}}}$$
+    <br/>
+    <br/>
+</p> 
+<p align="center">
+    <a href="https://github.com/psmyth94/biosets/actions/workflows/ci_cd_pipeline.yml?query=branch%3Amain"><img alt="Build" src="https://github.com/psmyth94/biosets/actions/workflows/ci_cd_pipeline.yml/badge.svg?branch=main"></a>
+    <a href="https://github.com/psmyth94/biosets/blob/main/LICENSE"><img alt="GitHub" src="https://img.shields.io/github/license/psmyth94/biosets.svg?color=blue"></a>
+    <a href="https://github.com/psmyth94/biosets/tree/main/docs"><img alt="Documentation" src="https://img.shields.io/website/http/github/psmyth94/biosets/tree/main/docs.svg?down_color=red&down_message=offline&up_message=online"></a>
+    <a href="https://github.com/psmyth94/biosets/releases"><img alt="GitHub release" src="https://img.shields.io/github/release/psmyth94/biosets.svg"></a>
+    <a href="CODE_OF_CONDUCT.md"><img alt="Contributor Covenant" src="https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg"></a>
+</p>
 
-Please note that this project is in the early stages of development. The documentation
-and features are subject to change.
+**Biosets** is a specialized library for bioinformatics data, providing the following main features:
 
-## Overview
+- **Easy data loading and metadata integration**: Load and preprocess bioinformatics datasets involving samples, batches, features, and associated metadata seamlessly.
+- **Automated data handling for bioinformatics tasks**: Features automatic column inference, custom feature classes with metadata, and support for classification/regression tasks.
 
-BioSets is a library built on top of the `datasets` library for loading, manipulating,
-and processing biological datasets for machine learning purposes. It supports genomics,
-transcriptomics, proteomics, metabolomics, and other types of biological data.
+<h3 align="center">
+    <!-- <a href="YOUR_COURSE_URL"><img src="YOUR_COURSE_BANNER_URL"></a> -->
+</h3>
 
-This repository contains tools and documentation for creating biological datasets using
-BioSets. The library loads biological data from local files, creates custom datasets,
-and handles large volumes of biological information. BioSets is intended for
-researchers and data scientists in bioinformatics, systems biology, and biotechnology.
+Biosets is designed to enable the bioinformatics community to efficiently handle data involving multiple dimensions such as samples, features, and metadata.
 
 ## Features
 
-🧬 **Loading sample metadata and feature metadata**: BioSets loads both sample
-metadata and feature metadata.
+Biosets offers powerful tools tailored for bioinformatics data:
 
-🧬 **Support for various biological data types**: Includes predefined classes for
-genomic variants, gene expression data, clinical trial data, and OTU tables.
+- **Bioinformatics Specialization**: Streamlines data management specific to bioinformatics, such as handling samples, features, batches, and associated metadata.
+- **Automatic Column Detection**: Infers sample, batch, input features, and target columns, simplifying downstream preprocessing.
+- **Custom Data Classes**: Leverages specialized data classes (`ValueWithMetadata`, `Sample`, `Batch`, `RegressionTarget`, etc.) to manage metadata-rich bioinformatics data.
+- **Polars Integration**: Optional Polars integration enables high-performance data manipulation, ideal for large datasets.
+- **Flexible Task Support**: Native support for binary classification, multiclass classification, multiclass-to-binary classification, and regression, adapting to diverse bioinformatics tasks.
+- **Integration with Hugging Face Datasets**: `load_dataset` function supports loading various bioinformatics formats like CSV, JSON, NPZ, and more, including metadata integration.
+- **Arrow File Caching**: Uses Apache Arrow for efficient on-disk caching, enabling fast access to large datasets without memory limitations.
 
-🧬 **Automatic Sample/Batch Detection**: Automatically detects sample and batch
-information from the loaded data to handle batch effects and confounding factors.
+Biosets helps bioinformatics researchers focus on analysis rather than data handling, with seamless compatibility with Hugging Face Datasets.
 
-🧬 **Custom dataset creation**: Create custom datasets with specific features,
-metadata, and labels.
+## Installation
 
-🧬 **Integration with datasets library**: BioSets builds on the `datasets` library's
-functionality. Note that if `path` is not a value found in
-`biosets.list_experiment_types()`, it acts like Huggingface's `datasets` library.
+### With pip
 
-## Getting Started
-
-To use the BioSets library, clone the repository and install the necessary
-dependencies. After setting up your environment, create your dataset by following the
-steps below.
-
-### Installation
-
-Install BioSets using pip:
+You can install **Biosets** from PyPI:
 
 ```bash
 pip install biosets
 ```
 
-### Creating a Biological Dataset
+### With conda
 
-To create a dataset for biological research using BioSets, follow these steps:
+Install **Biosets** via conda:
 
-1. **Organize Your Data**: Prepare your biological data in a structured format that
-BioSets can process (e.g., directory of relevant files).
+```bash
+conda install -c conda-forge biosets
+```
 
-2. **Load Your Data with Metadata**: Use `load_dataset()` to load your data along with
-sample metadata and feature metadata:
+For more installation details, see the [installation documentation](YOUR_DOCS_INSTALLATION_URL).
 
-   ```python
-   from biosets import load_dataset
+## Usage
 
-   dataset = load_dataset(
-       "snp",
-       data_files="/path/to/snp_data.csv",
-       sample_metadata_files="/path/to/sample_metadata.csv",
-       feature_metadata_files="/path/to/feature_metadata.csv",
-   )
-   ```
+**Biosets** provides a straightforward API for handling bioinformatics datasets with integrated metadata management. Here's a quick example:
 
-3. **Utilize Metadata for Analysis**: The loaded dataset allows you to access and use
-metadata in downstream analyses. For example, you can handle abundance data differently
-based on its type:
+```python
+from biosets import load_biodata
 
-   ```python
-   from biosets.features import Abundance
-   for k, v in dataset.features.items():
-       if isinstance(v, Abundance):
-           print(f"Processing abundance feature: {k}")
-   ```
+bio_data = load_dataset(
+    data_files="data_with_samples.csv",
+    sample_metadata_files="sample_metadata.csv",
+    feature_metadata_files="feature_metadata.csv",
+    target_column="metadata1",
+    experiment_type="metagenomics",
+    batch_column="batch",
+    sample_column="sample",
+    metadata_columns=["metadata1", "metadata2"],
+    drop_samples=False
+)["train"]
+```
 
-### Dataset Examples
+For further details, check the [advance usage documentation](./docs/DATA_LOADING.md).
 
-#### Loading Specific Experiments
+## Main Differences Between Biosets and Hugging Face Datasets
 
-Use specific experiment types for loading data, such as `otu`, `maldi`, `rna`, or `snp`
-to ensure the appropriate configuration is applied:
+- **Bioinformatics Focus**: While Hugging Face Datasets is a general-purpose library, Biosets is tailored for the bioinformatics domain.
+- **Seamless Metadata Integration**: Biosets is built for datasets with metadata dependencies, like sample and feature metadata.
+- **Automatic Column Detection**: Reduces preprocessing time with automatic inference of sample, batch, feature, and label columns.
+- **Specialized Data Classes**: Biosets introduces custom classes (e.g., `Sample`, `Batch`, `ValueWithMetadata`) to enable richer data representation.
 
-🧬 **OTU Data**
+## Disclaimers
 
-  ```python
-  dataset = load_dataset("otu", data_files="/path/to/otu_data.csv")
-  ```
+Biosets may run Python code from custom `datasets` scripts to handle specific data formats. For security, users should:
 
-🧬 **RNA Data**
+- Inspect dataset scripts prior to execution.
+- Use pinned versions for any repository dependencies.
 
-  ```python
-  dataset = load_dataset("rna", data_files="/path/to/rna_data.csv")
-  ```
+If you manage a dataset and wish to update or remove it, please open a discussion or pull request on the Community tab of hugging face's datasets page.
 
-🧬 **SNP Data**
+## BibTeX
 
-  ```python
-  dataset = load_dataset("snp", data_files="/path/to/snp_data.csv")
-  ```
+If you'd like to cite **Biosets**, please use the following:
 
-### Next Steps
+```bibtex
+@misc{smyth2024biosets,
+    title = {Biosets: A Bioinformatics Library for Data and Metadata management},
+    author = {Patrick Smyth},
+    year = {2024},
+    url = {https://github.com/psmyth94/biosets},
+    note = {A library designed to support bioinformatics data with custom features, metadata integration, and compatibility with Hugging Face Datasets.}
+}
+```
 
-After creating your biological dataset, you can use BioSets for feature extraction, model
-training, or data visualization.
-
-For more advanced usage, refer to the [dataset loading
-documentation](src/biosets/DATASET_LOADING.md). For building custom datasets, refer to
-the [custom dataset creation documentation](src/biosets/CUSTOM_DATASETS.md).
-
-For any additional information, refer to the [datasets library
-documentation](https://huggingface.co/docs/datasets/).
-
-## Contributing
-
-Contributions are welcome! If you have suggestions for improvements or new features,
-open an issue or submit a pull request. For major changes, open an issue first to
-discuss it.
-
-## License
-
-This project contains portions derived from various sources under the Apache License,
-Version 2.0 (see [LICENSE](./LICENSE)), as well as under the MIT License (see [LICENSE-MIT](./LICENSE-MIT)).
