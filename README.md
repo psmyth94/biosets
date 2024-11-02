@@ -39,7 +39,7 @@ pip install biosets
 Install **Biosets** via conda:
 
 ```bash
-conda install -c conda-forge biosets
+conda install -c patrico49 biosets
 ```
 
 ## Usage
