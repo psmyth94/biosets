@@ -1,0 +1,37 @@
+{% set name = "biosets" %}
+
+package:
+  name: "{{ name|lower }}"
+  version: "{{ BIOSETS_VERSION }}"
+
+source:
+  path: ../../
+
+build:
+  noarch: python
+requirements:
+  host:
+    - python
+    - pip
+    - datasets
+    - biocore
+  run:
+    - python
+    - pip
+    - datasets
+    - biocore
+test:
+  imports:
+    - biosets
+about:
+  home: https://github.com/psmyth94/biosets
+  license: Apache-2.0
+  license_file: LICENSE
+  summary: Bioinformatics datasets and tools for data management
+  description: |
+    A library for handling datasets and data integration in bioinformatics.
+  keywords:
+    - omics
+    - machine learning
+    - bioinformatics
+    - datasets
