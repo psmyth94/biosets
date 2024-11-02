@@ -9,32 +9,20 @@
     <a href="https://github.com/psmyth94/biosets/tree/main/docs"><img alt="Documentation" src="https://img.shields.io/website/http/github/psmyth94/biosets/tree/main/docs.svg?down_color=red&down_message=offline&up_message=online"></a>
     <a href="https://github.com/psmyth94/biosets/releases"><img alt="GitHub release" src="https://img.shields.io/github/release/psmyth94/biosets.svg"></a>
     <a href="CODE_OF_CONDUCT.md"><img alt="Contributor Covenant" src="https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg"></a>
+    <a href="https://zenodo.org/records/14028772"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.14028772.svg" alt="DOI"></a>
 </p>
 
-**Biosets** is a specialized library for bioinformatics data, providing the following main features:
-
-- **Easy data loading and metadata integration**: Load and preprocess bioinformatics datasets involving samples, batches, features, and associated metadata seamlessly.
-- **Automated data handling for bioinformatics tasks**: Features automatic column inference, custom feature classes with metadata, and support for classification/regression tasks.
-
-<h3 align="center">
-    <!-- <a href="YOUR_COURSE_URL"><img src="YOUR_COURSE_BANNER_URL"></a> -->
-</h3>
-
-Biosets is designed to enable the bioinformatics community to efficiently handle data involving multiple dimensions such as samples, features, and metadata.
-
-## Features
-
-Biosets offers powerful tools tailored for bioinformatics data:
+**Biosets** is a specialized library that extends 🤗 [Datasets](https://github.com/huggingface/datasets) for bioinformatics data, providing the following main features:
 
 - **Bioinformatics Specialization**: Streamlines data management specific to bioinformatics, such as handling samples, features, batches, and associated metadata.
 - **Automatic Column Detection**: Infers sample, batch, input features, and target columns, simplifying downstream preprocessing.
 - **Custom Data Classes**: Leverages specialized data classes (`ValueWithMetadata`, `Sample`, `Batch`, `RegressionTarget`, etc.) to manage metadata-rich bioinformatics data.
-- **Polars Integration**: Optional Polars integration enables high-performance data manipulation, ideal for large datasets.
+- **Polars Integration**: Optional [Polars](https://github.com/pola-rs/polars) integration enables high-performance data manipulation, ideal for large datasets.
 - **Flexible Task Support**: Native support for binary classification, multiclass classification, multiclass-to-binary classification, and regression, adapting to diverse bioinformatics tasks.
-- **Integration with Hugging Face Datasets**: `load_dataset` function supports loading various bioinformatics formats like CSV, JSON, NPZ, and more, including metadata integration.
-- **Arrow File Caching**: Uses Apache Arrow for efficient on-disk caching, enabling fast access to large datasets without memory limitations.
+- **Integration with 🤗 Datasets**: `load_dataset` function supports loading various bioinformatics formats like CSV, JSON, NPZ, and more, including metadata integration.
+- **Arrow File Caching**: Uses [Apache Arrow](https://github.com/apache/arrow) for efficient on-disk caching, enabling fast access to large datasets without memory limitations.
 
-Biosets helps bioinformatics researchers focus on analysis rather than data handling, with seamless compatibility with Hugging Face Datasets.
+Biosets helps bioinformatics researchers focus on analysis rather than data handling, with seamless compatibility with 🤗 Datasets.
 
 ## Installation
 
@@ -53,8 +41,6 @@ Install **Biosets** via conda:
 ```bash
 conda install -c conda-forge biosets
 ```
-
-For more installation details, see the [installation documentation](YOUR_DOCS_INSTALLATION_URL).
 
 ## Usage
 
@@ -78,9 +64,9 @@ bio_data = load_dataset(
 
 For further details, check the [advance usage documentation](./docs/DATA_LOADING.md).
 
-## Main Differences Between Biosets and Hugging Face Datasets
+## Main Differences Between Biosets and 🤗 Datasets
 
-- **Bioinformatics Focus**: While Hugging Face Datasets is a general-purpose library, Biosets is tailored for the bioinformatics domain.
+- **Bioinformatics Focus**: While 🤗 Datasets is a general-purpose library, Biosets is tailored for the bioinformatics domain.
 - **Seamless Metadata Integration**: Biosets is built for datasets with metadata dependencies, like sample and feature metadata.
 - **Automatic Column Detection**: Reduces preprocessing time with automatic inference of sample, batch, feature, and label columns.
 - **Specialized Data Classes**: Biosets introduces custom classes (e.g., `Sample`, `Batch`, `ValueWithMetadata`) to enable richer data representation.
@@ -92,7 +78,7 @@ Biosets may run Python code from custom `datasets` scripts to handle specific da
 - Inspect dataset scripts prior to execution.
 - Use pinned versions for any repository dependencies.
 
-If you manage a dataset and wish to update or remove it, please open a discussion or pull request on the Community tab of hugging face's datasets page.
+If you manage a dataset and wish to update or remove it, please open a discussion or pull request on the Community tab of 🤗's datasets page.
 
 ## BibTeX
 
@@ -100,11 +86,11 @@ If you'd like to cite **Biosets**, please use the following:
 
 ```bibtex
 @misc{smyth2024biosets,
-    title = {Biosets: A Bioinformatics Library for Data and Metadata management},
+    title = {psmyth94/biosets: 1.1.0},
     author = {Patrick Smyth},
     year = {2024},
     url = {https://github.com/psmyth94/biosets},
-    note = {A library designed to support bioinformatics data with custom features, metadata integration, and compatibility with Hugging Face Datasets.}
+    note = {A library designed to support bioinformatics data with custom features, metadata integration, and compatibility with 🤗 Datasets.}
 }
 ```
 
