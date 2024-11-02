@@ -78,7 +78,7 @@ _MODULE_SUPPORTS_METADATA.add("maldi")
 
 
 # This is for rolling up the dataset type if there is no specific implementation for it
-DATASET_NAME_TO_OMIC_TYPE = {
+EXPERIMENT_TYPE_TO_BUILDER_CLASS = {
     "biodata": None,
     "metagenomics": "metagenomics",
     "genomics": "genomics",
@@ -93,7 +93,7 @@ DATASET_NAME_TO_OMIC_TYPE = {
     "ms2": "proteomics",
 }
 
-DATASET_NAME_ALIAS = {
+EXPERIMENT_TYPE_ALIAS = {
     "maldi-tof": "maldi",
     "ms/ms": "ms2",
     "ms": "ms1",
@@ -104,11 +104,11 @@ DATASET_NAME_ALIAS = {
 
 def list_experiment_types(experiment_type=None):
     if experiment_type is not None:
-        if experiment_type in DATASET_NAME_TO_OMIC_TYPE:
-            return list(DATASET_NAME_TO_OMIC_TYPE[experiment_type])
+        if experiment_type in EXPERIMENT_TYPE_TO_BUILDER_CLASS:
+            return list(EXPERIMENT_TYPE_TO_BUILDER_CLASS[experiment_type])
         else:
             raise ValueError(
                 f"Invalid experiment type: {experiment_type}. "
-                f"Valid experiment types are: {list(DATASET_NAME_TO_OMIC_TYPE.keys())}"
+                f"Valid experiment types are: {list(EXPERIMENT_TYPE_TO_BUILDER_CLASS.keys())}"
             )
-    return sorted(list(DATASET_NAME_TO_OMIC_TYPE.keys()))
+    return sorted(list(EXPERIMENT_TYPE_TO_BUILDER_CLASS.keys()))

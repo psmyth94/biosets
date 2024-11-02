@@ -22,7 +22,7 @@ from datasets import (
     load_from_disk as _load_from_disk,
 )
 
-from .packaged_modules import DATASET_NAME_ALIAS, DATASET_NAME_TO_OMIC_TYPE
+from .packaged_modules import EXPERIMENT_TYPE_ALIAS, EXPERIMENT_TYPE_TO_BUILDER_CLASS
 
 
 @wraps(_load_dataset)
@@ -31,7 +31,7 @@ def load_dataset(*args, **kwargs):
 
     Args:
     - path: The path to the dataset.
-    - dataset_type: The type of dataset to load.
+    - experiment_type: The type of experiment that was used to generate the dataset.
     - name: The name of the dataset to load.
     - data_files: The data files to load.
     - split: The split to load.
@@ -54,10 +54,10 @@ def load_dataset(*args, **kwargs):
     else:
         path = kwargs.pop("path", None)
     path = kwargs.pop("experiment_type", path)
-    path = DATASET_NAME_ALIAS.get(path, path)
+    path = EXPERIMENT_TYPE_ALIAS.get(path, path)
     args = (path, *args[1:])
     # only patch if we are loading a custom packaged module
-    if path in DATASET_NAME_TO_OMIC_TYPE.keys():
+    if path in EXPERIMENT_TYPE_TO_BUILDER_CLASS.keys():
         from biosets.integration import DatasetsPatcher
 
         load_dataset_args = inspect.signature(_load_dataset).parameters.keys()
