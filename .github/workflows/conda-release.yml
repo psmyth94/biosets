@@ -21,7 +21,7 @@ jobs:
           auto-activate-base: false
           activate-environment: "build-biosets"
           python-version: 3.8
-          channels: conda-forge
+          channels: patrico49
       - name: Setup conda env
         run: |
           conda install -c defaults anaconda-client conda-build
