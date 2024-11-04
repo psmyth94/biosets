@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 REQUIRED_PKGS = [
-    "datasets",
+    "datasets>=2.19.1",
     "biocore",
 ]
 
