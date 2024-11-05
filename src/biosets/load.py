@@ -10,6 +10,7 @@ import inspect
 from functools import wraps
 from typing import Optional
 
+from biocore.utils.inspect import get_kwargs
 from datasets import (
     concatenate_datasets as _concatenate_datasets,
 )
@@ -21,6 +22,7 @@ from datasets import (
 from datasets import (
     load_from_disk as _load_from_disk,
 )
+from datasets.load import dataset_module_factory
 
 from .packaged_modules import EXPERIMENT_TYPE_ALIAS, EXPERIMENT_TYPE_TO_BUILDER_CLASS
 
@@ -53,7 +55,33 @@ def load_dataset(*args, **kwargs):
         path = args[0]
     else:
         path = kwargs.pop("path", None)
-    path = kwargs.pop("experiment_type", path)
+
+    load_dataset_args = inspect.signature(_load_dataset).parameters.keys()
+
+    if path is not None and not (
+        path in EXPERIMENT_TYPE_ALIAS.keys()
+        or path in EXPERIMENT_TYPE_TO_BUILDER_CLASS.keys()
+    ):
+        dataset_module_factory_kwargs = get_kwargs(kwargs, dataset_module_factory)
+        dataset_module = dataset_module_factory(path, **dataset_module_factory_kwargs)
+        builder_configs = dataset_module.builder_configs_parameters.builder_configs
+        for b in builder_configs:
+            flds = {k: getattr(b, k) for k in b.__dataclass_fields__.keys()}
+            builder_kwargs = {}
+            new_kwargs = {}
+            for k in flds:
+                if k in load_dataset_args:
+                    new_kwargs[k] = flds[k]
+                else:
+                    builder_kwargs[k] = flds[k]
+
+            return load_dataset(
+                **new_kwargs,
+                builder_kwargs=builder_kwargs,
+                experiment_type=kwargs.get("experiment_type", "biodata"),
+            )
+
+    path = kwargs.pop("experiment_type", "biodata")
     path = EXPERIMENT_TYPE_ALIAS.get(path, path)
     args = (path, *args[1:])
     # only patch if we are loading a custom packaged module
@@ -67,7 +95,10 @@ def load_dataset(*args, **kwargs):
             }
             builder_kwargs.update(kwargs)
 
-            kwargs["builder_kwargs"] = builder_kwargs
+            if "builder_kwargs" in kwargs:
+                kwargs["builder_kwargs"].update(builder_kwargs)
+            else:
+                kwargs["builder_kwargs"] = builder_kwargs
             return _load_dataset(*args, **kwargs)
     else:
         return _load_dataset(*args, **kwargs)
