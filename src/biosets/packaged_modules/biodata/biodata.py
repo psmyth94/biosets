@@ -12,6 +12,7 @@ import pandas as pd
 import pandas.api.types as pdt
 import pyarrow as pa
 import pyarrow.json as paj
+import pyarrow.parquet as pq
 from biocore.data_handling import DataHandler
 from biocore.utils.import_util import is_polars_available
 from datasets.data_files import (
@@ -26,7 +27,8 @@ from datasets.packaged_modules.arrow import arrow as hf_arrow
 from datasets.packaged_modules.csv import csv as hf_csv
 from datasets.packaged_modules.json import json as hf_json
 from datasets.packaged_modules.parquet import parquet as hf_parquet
-from datasets.utils.py_utils import asdict
+from datasets.table import cast_table_to_features, cast_table_to_schema
+from datasets.utils.py_utils import asdict, tqdm
 
 from biosets.integration.datasets.datasets import DatasetsPatcher
 from biosets.packaged_modules.npz.npz import SparseReaderConfig
@@ -186,6 +188,8 @@ class BioDataConfig(datasets.BuilderConfig):
     use_polars: bool = True
 
     rows_are_features: bool = False
+    use_first_schema: Optional[bool] = None
+    zero_as_missing: bool = False
 
     EXTENSION_MAP = {
         ".csv": ("csv", biosets_csv.CsvConfig, hf_csv.CsvConfig),
@@ -631,6 +635,38 @@ class BioData(datasets.ArrowBasedBuilder):
         for data_split in data_splits:
             # retrieve the labels from the metadata table if not already specified
 
+            if self.config.features is None:
+                # don't rely on the features from the data file
+                self.info.features = Features()
+                if self.config.module_path.endswith("parquet.py"):
+                    if (
+                        len(self.config.data_files[data_split.name]) > 1
+                        and self.config.use_first_schema is None
+                    ):
+                        logger.warning(
+                            "Multiple parquet files were provided. The schema will use "
+                            "the combined schema of all data files. To use the schema "
+                            "of the first file, set `use_first_schema=True`. To turn "
+                            "off this warning, set `use_first_schema=False`."
+                        )
+                    for idx, file in tqdm(
+                        enumerate(
+                            itertools.chain.from_iterable(
+                                [self.config.data_files[data_split.name]]
+                            )
+                        )
+                    ):
+                        with open(file, "rb") as f:
+                            self.info.features.update(
+                                datasets.Features.from_arrow_schema(pq.read_schema(f))
+                            )
+                        if self.config.use_first_schema:
+                            break
+                        elif self.config.use_first_schema is None:
+                            logger.info("Using")
+                    generator.info.features = self.info.features
+            else:
+                self.info.features = self.config.features
             splits.append(
                 datasets.SplitGenerator(
                     name=data_split.name,
@@ -915,11 +951,30 @@ class BioData(datasets.ArrowBasedBuilder):
                 metadata_schema = Features.from_arrow_schema(table.schema)
 
             if not self.info.features:
-                self.info.features = self._create_features(
-                    metadata_schema,
-                    column_names=DataHandler.get_column_names(table),
-                    feature_metadata=feature_metadata_dict,
-                )
+                if self.config.features is not None:
+                    self.info.features = self.config.features
+                else:
+                    self.info.features = self._create_features(
+                        metadata_schema,
+                        column_names=DataHandler.get_column_names(table),
+                        feature_metadata=feature_metadata_dict,
+                    )
+            if self.info.features:
+                missing_columns = set(self.info.features) - set(table.column_names)
+                if missing_columns:
+                    logger.warning_once(
+                        "Some columns are missing for some of the tables. "
+                        "The parameter `zero_as_missing` is set to "
+                        f"{self.config.zero_as_missing}."
+                    )
+                    num_rows = table.num_rows
+                    fill_value = None if self.config.zero_as_missing else 0
+                    new_columns = {
+                        name: pa.array([fill_value] * num_rows)
+                        for name in missing_columns
+                    }
+                    combined_columns = {**table.to_pydict(), **new_columns}
+                    table = pa.table(combined_columns)
 
             metadata_dump = {}
             for k, v in stored_metadata_schema.items():
