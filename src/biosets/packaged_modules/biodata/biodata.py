@@ -27,7 +27,6 @@ from datasets.packaged_modules.arrow import arrow as hf_arrow
 from datasets.packaged_modules.csv import csv as hf_csv
 from datasets.packaged_modules.json import json as hf_json
 from datasets.packaged_modules.parquet import parquet as hf_parquet
-from datasets.table import cast_table_to_features, cast_table_to_schema
 from datasets.utils.py_utils import asdict, tqdm
 
 from biosets.integration.datasets.datasets import DatasetsPatcher
