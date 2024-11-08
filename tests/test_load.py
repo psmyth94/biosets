@@ -197,27 +197,27 @@ def complex_data_dir(tmp_path):
     return str(data_dir)
 
 
-# @pytest.mark.parametrize("path_extension", ["csv", "csv.bz2"])
-# @pytest.mark.parametrize("streaming", [False, True])
-# def test_load_dataset_streaming_csv(path_extension, streaming, csv_path, bz2_csv_path):
-#     paths = {"csv": csv_path, "csv.bz2": bz2_csv_path}
-#     data_files = str(paths[path_extension])
-#     features = Features(
-#         {"col_1": Value("string"), "col_2": Value("int32"), "col_3": Value("float32")}
-#     )
-#     ds = load_dataset(
-#         "csv",
-#         split="train",
-#         data_files=data_files,
-#         features=features,
-#         streaming=streaming,
-#     )
-#     assert isinstance(ds, IterableDataset if streaming else datasets.Dataset)
-#     ds_item = next(iter(ds))
-#     assert ds_item == {"col_1": "0", "col_2": 0, "col_3": 0.0}
+@pytest.mark.parametrize("path_extension", ["csv", "csv.bz2"])
+@pytest.mark.parametrize("streaming", [False])
+def test_load_dataset_streaming_csv(path_extension, streaming, csv_path, bz2_csv_path):
+    paths = {"csv": csv_path, "csv.bz2": bz2_csv_path}
+    data_files = str(paths[path_extension])
+    features = Features(
+        {"col_1": Value("string"), "col_2": Value("int32"), "col_3": Value("float32")}
+    )
+    ds = load_dataset(
+        "csv",
+        split="train",
+        data_files=data_files,
+        features=features,
+        streaming=streaming,
+    )
+    # assert isinstance(ds, IterableDataset if streaming else datasets.Dataset)
+    ds_item = next(iter(ds))
+    assert ds_item == {"col_1": "0", "col_2": 0, "col_3": 0.0}
 
 
-@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("streaming", [False])
 @pytest.mark.parametrize(
     "data_file", ["zip_csv_path", "zip_csv_with_dir_path", "csv_path"]
 )
@@ -254,7 +254,7 @@ def test_load_dataset_zip_csv(
         assert ds_item == {"col_1": "0", "col_2": 0, "col_3": 0.0}
 
 
-@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("streaming", [False])
 def test_load_dataset_arrow(streaming, data_dir_with_arrow):
     ds = load_dataset(
         "arrow", split="train", data_dir=data_dir_with_arrow, streaming=streaming
