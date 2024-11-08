@@ -7,7 +7,7 @@ from unittest import TestCase
 import datasets
 import pyarrow as pa
 import pytest
-from datasets import DownloadConfig, Features, IterableDataset, Value
+from datasets import DownloadConfig, Features, Value
 from datasets.arrow_writer import ArrowWriter
 from datasets.config import METADATA_CONFIGS_FIELD
 from datasets.load import PackagedDatasetModuleFactory
