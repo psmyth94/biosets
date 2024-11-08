@@ -188,7 +188,10 @@ class BioDataConfig(datasets.BuilderConfig):
 
     rows_are_features: bool = False
     use_first_schema: Optional[bool] = None
+    add_missing_columns: bool = False
     zero_as_missing: bool = False
+
+    module_path: Optional[str] = None
 
     EXTENSION_MAP = {
         ".csv": ("csv", biosets_csv.CsvConfig, hf_csv.CsvConfig),
@@ -245,7 +248,12 @@ class BioDataConfig(datasets.BuilderConfig):
             for file, metadata in zip(files, self.data_files[split].origin_metadata):
                 file_path = Path(file).resolve().as_posix()
                 base_name = os.path.basename(file)
-                extension = os.path.splitext(file)[-1].lower()
+                if self.module_path:
+                    extension = "." + os.path.split(self.module_path)[
+                        -1
+                    ].lower().replace(".py", "")
+                else:
+                    extension = os.path.splitext(file)[-1].lower()
 
                 if base_name in self.DEFAULT_SAMPLE_METADATA_FILENAMES:
                     self.sample_metadata_files[split].append(file_path)
@@ -392,10 +400,19 @@ class BioDataConfig(datasets.BuilderConfig):
             iter_files = iter_files.values()
         for file in itertools.chain.from_iterable(iter_files):
             file_ext = os.path.splitext(file)[-1].lower()
-            if file_ext in self.EXTENSION_MAP:
-                config_path, _config_class, hf_config_class = self.EXTENSION_MAP[
-                    file_ext
-                ]
+
+            config_path, _config_class, hf_config_class = self.EXTENSION_MAP.get(
+                file_ext, (None, None, None)
+            )
+
+            if config_path is None and self.module_path is not None:
+                # in case file path is a zip file and the module path is provided
+                # from datasets.load_dataset_builder within `biosets.load.load_dataset`
+                file_ext = "." + self.module_path.split("/")[-1].replace(".py", "")
+                config_path, _config_class, hf_config_class = self.EXTENSION_MAP.get(
+                    file_ext, (None, None, None)
+                )
+            if config_path is not None:
                 builder_kwargs = {}
                 builder_kwargs["data_files"] = files
                 if hf_config_class:
@@ -636,33 +653,50 @@ class BioData(datasets.ArrowBasedBuilder):
 
             if self.config.features is None:
                 # don't rely on the features from the data file
-                self.info.features = Features()
-                if self.config.module_path.endswith("parquet.py"):
+                if (
+                    self.config.add_missing_columns or self.config.zero_as_missing
+                ) and any(
+                    self.config.module_path.endswith(f)
+                    for f in ["parquet.py", "arrow.py"]
+                ):
+                    self.info.features = Features()
                     if (
                         len(self.config.data_files[data_split.name]) > 1
                         and self.config.use_first_schema is None
                     ):
+                        file_type = self.config.module_path.split("/")[-1].split(".")[0]
                         logger.warning(
-                            "Multiple parquet files were provided. The schema will use "
-                            "the combined schema of all data files. To use the schema "
-                            "of the first file, set `use_first_schema=True`. To turn "
-                            "off this warning, set `use_first_schema=False`."
+                            f"Multiple {file_type} files were provided. The schema "
+                            "will use the combined schema of all data files. To use "
+                            "the schema of only the first file, set "
+                            "`use_first_schema=True`. To turn off this warning, set "
+                            "`use_first_schema=False`."
                         )
+                    num_files = len(self.config.data_files[data_split.name])
                     for idx, file in tqdm(
                         enumerate(
                             itertools.chain.from_iterable(
                                 [self.config.data_files[data_split.name]]
                             )
-                        )
+                        ),
+                        total=num_files,
+                        desc=f"Loading schema for files in {data_split.name}",
                     ):
                         with open(file, "rb") as f:
-                            self.info.features.update(
-                                datasets.Features.from_arrow_schema(pq.read_schema(f))
-                            )
+                            if self.config.module_path.endswith("parquet.py"):
+                                self.info.features.update(
+                                    datasets.Features.from_arrow_schema(
+                                        pq.read_schema(f)
+                                    )
+                                )
+                            elif self.config.module_path.endswith("arrow.py"):
+                                self.info.features.update(
+                                    datasets.Features.from_arrow_schema(
+                                        pa.ipc.read_schema(f)
+                                    )
+                                )
                         if self.config.use_first_schema:
                             break
-                        elif self.config.use_first_schema is None:
-                            logger.info("Using")
                     generator.info.features = self.info.features
             else:
                 self.info.features = self.config.features
@@ -961,19 +995,15 @@ class BioData(datasets.ArrowBasedBuilder):
             if self.info.features:
                 missing_columns = set(self.info.features) - set(table.column_names)
                 if missing_columns:
-                    logger.warning_once(
-                        "Some columns are missing for some of the tables. "
-                        "The parameter `zero_as_missing` is set to "
-                        f"{self.config.zero_as_missing}."
-                    )
-                    num_rows = table.num_rows
-                    fill_value = None if self.config.zero_as_missing else 0
-                    new_columns = {
-                        name: pa.array([fill_value] * num_rows)
-                        for name in missing_columns
-                    }
-                    combined_columns = {**table.to_pydict(), **new_columns}
-                    table = pa.table(combined_columns)
+                    if self.config.add_missing_columns:
+                        num_rows = table.num_rows
+                        fill_value = 0 if self.config.zero_as_missing else None
+                        new_columns = {
+                            name: pa.array([fill_value] * num_rows)
+                            for name in missing_columns
+                        }
+                        combined_columns = {**table.to_pydict(), **new_columns}
+                        table = pa.table(combined_columns)
 
             metadata_dump = {}
             for k, v in stored_metadata_schema.items():

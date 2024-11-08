@@ -17,6 +17,8 @@ from biocore.utils.inspect import get_kwargs
 from datasets import (
     DownloadMode,
     VerificationMode,
+)
+from datasets import (
     concatenate_datasets as _concatenate_datasets,
 )
 from datasets import (
@@ -107,6 +109,11 @@ def load_dataset(*args, **kwargs):
     - **kwargs: Additional keyword arguments to use.
     """
 
+    if "streaming" in kwargs and kwargs["streaming"]:
+        raise NotImplementedError(
+            "Loading a streaming dataset is not implemented. "
+            "To load a streaming dataset, you can use the `datasets.load_dataset` instead"
+        )
     load_dataset_args = inspect.signature(_load_dataset).parameters.keys()
     args_to_kwargs = {
         k: v for k, v in zip(load_dataset_args, args) if k in load_dataset_args
@@ -141,6 +148,7 @@ def load_dataset(*args, **kwargs):
         new_kwargs.update({k: getattr(builder_info, k) for k in matching_args})
 
         experiment_type = new_kwargs.pop("experiment_type", "biodata")
+        new_kwargs["module_path"] = inspect.getfile(dataset_builder.__class__)
         return load_dataset(
             **new_kwargs,
             experiment_type=experiment_type,
@@ -159,7 +167,7 @@ def load_dataset(*args, **kwargs):
                 kwargs["builder_kwargs"] = kwargs
             return _load_dataset(path, **kwargs)
     else:
-        return _load_dataset(*args, **kwargs)
+        return _load_dataset(path, *args, **kwargs)
 
 
 def concatenate_datasets(dsets, info=None, split=None, axis=0):
