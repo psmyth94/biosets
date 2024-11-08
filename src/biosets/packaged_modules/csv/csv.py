@@ -151,7 +151,6 @@ class Csv(_Csv):
                 yield table
         else:
             import polars as pl
-            import polars.exceptions as pl_ex
 
             try:
                 schema = (
