@@ -5,15 +5,16 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Mapping, Optional, Sequence, Union
 
 import datasets
+import numpy as np
 import pandas as pd
 import pyarrow as pa
+from biocore.utils.import_util import is_polars_available
+from biocore.utils.inspect import get_kwargs
 from datasets.features.features import require_storage_cast
 from datasets.packaged_modules.csv.csv import Csv as _Csv
 from datasets.packaged_modules.csv.csv import CsvConfig as HfCsvConfig
 
 from biosets.utils import logging
-from biocore.utils.import_util import is_polars_available
-from biocore.utils.inspect import get_kwargs
 
 if TYPE_CHECKING:
     from polars.type_aliases import CsvEncoding
@@ -82,8 +83,8 @@ class CsvConfig(datasets.BuilderConfig):
             "low_memory": self.low_memory,
             "rechunk": self.rechunk,
             "skip_rows_after_header": self.skip_rows_after_header,
-            "row_count_name": self.row_count_name,
-            "row_count_offset": self.row_count_offset,
+            "row_index_name": self.row_count_name,
+            "row_index_offset": self.row_count_offset,
             "sample_size": self.sample_size,
             "eol_char": self.eol_char,
             "raise_if_empty": self.raise_if_empty,
@@ -156,22 +157,36 @@ class Csv(_Csv):
                 schema = (
                     self.config.features.arrow_schema if self.config.features else None
                 )
+
+                def parse_dtype(dtype):
+                    if isinstance(dtype, type) and issubclass(dtype, np.generic):
+                        dt = dtype()
+                        if hasattr(dt, "item"):
+                            return dtype().item().__class__
+                        return object
+                    return dtype
+
                 # dtype allows reading an int column as str
-                dtype = (
-                    {
-                        name: dtype.to_pandas_dtype()
-                        if not require_storage_cast(feature)
-                        else object
-                        for name, dtype, feature in zip(
-                            schema.names, schema.types, self.config.features.values()
-                        )
-                    }
-                    if schema is not None
-                    else None
-                )
+
+                dtype = None
+                if schema is not None:
+                    schema_overrides = {}
+                    for name, dtype, feature in zip(
+                        schema.names, schema.types, self.config.features.values()
+                    ):
+                        if require_storage_cast(feature):
+                            schema_overrides[name] = object
+                        if dtype == pa.string() or dtype == pa.large_string():
+                            schema_overrides[name] = str
+                        else:
+                            schema_overrides[name] = parse_dtype(
+                                dtype.to_pandas_dtype()
+                            )
                 for file_idx, file in enumerate(itertools.chain.from_iterable(files)):
                     csv_file_reader = pl.read_csv_batched(
-                        file, dtypes=dtype, **self.config.pl_scan_csv_kwargs
+                        file,
+                        schema_overrides=schema_overrides,
+                        **self.config.pl_scan_csv_kwargs,
                     )
                     try:
                         while True:
@@ -191,7 +206,7 @@ class Csv(_Csv):
                     except ValueError as e:
                         logger.error(f"Error while reading file {file}: {e}")
                         raise e
-            except pl_ex.ComputeError:
+            except Exception:
                 self.config = self.config.HF_CSV_CONFIG
                 self.BUILDER_CONFIG_CLASS = HfCsvConfig
                 for table in super()._generate_tables(files):

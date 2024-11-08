@@ -449,8 +449,8 @@ class BioDataConfig(datasets.BuilderConfig):
                 if "datasets" == _config_class.__module__.split(".")[0]:
                     builder_kwargs["path"] = config_path
                 else:
-                    # builder_kwargs["path"] = config_path
-                    builder_kwargs["path"] = module_path
+                    builder_kwargs["path"] = config_path
+                    # builder_kwargs["path"] = module_path
                     builder_kwargs["trust_remote_code"] = True
                 break
         return builder_kwargs
