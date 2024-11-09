@@ -1,16 +1,10 @@
-import importlib
 import textwrap
 import os
-import tempfile
-from pathlib import Path
-from unittest import TestCase
 
-import datasets
 import pyarrow as pa
 import pytest
-from datasets import DownloadConfig, Features, Value
+from datasets import Features, Value
 from datasets.arrow_writer import ArrowWriter
-from datasets.load import PackagedDatasetModuleFactory
 
 from biosets import load_dataset
 

@@ -5,7 +5,6 @@ from typing import Callable, Dict, List, Optional, Set
 import datasets
 import datasets.config
 import datasets.data_files
-from biocore.utils.import_util import _fsspec_version
 from datasets.utils.file_utils import xbasename
 from datasets.naming import _split_re
 from packaging import version

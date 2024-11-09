@@ -34,7 +34,6 @@ from datasets.load import load_dataset_builder
 from .packaged_modules import (
     EXPERIMENT_TYPE_ALIAS,
     EXPERIMENT_TYPE_TO_BUILDER_CLASS,
-    _PACKAGED_DATASETS_MODULES,
 )
 
 
