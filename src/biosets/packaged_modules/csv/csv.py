@@ -144,8 +144,9 @@ class Csv(_Csv):
                 raise
 
     def _generate_tables(self, files):
-        if not is_polars_available() or not self.config.use_polars:
-            self.config = self.config.HF_CSV_CONFIG
+        if not is_polars_available() or not getattr(self.config, "use_polars", None):
+            if hasattr(self.config, "HF_CSV_CONFIG"):
+                self.config = self.config.HF_CSV_CONFIG
             self.BUILDER_CONFIG_CLASS = HfCsvConfig
             for table in super()._generate_tables(files):
                 yield table

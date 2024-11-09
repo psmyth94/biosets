@@ -23,18 +23,7 @@ logger = logging.get_logger(__name__)
 PathLike = Union[str, bytes, os.PathLike]
 
 
-def with_patcher(func):
-    def wrapper(*args, **kwargs):
-        from biosets.integration import DatasetsPatcher
-
-        with DatasetsPatcher():
-            return func(*args, **kwargs)
-
-    return wrapper
-
-
 class Bioset(Dataset):
-    @with_patcher
     def cleanup_cache_files(self) -> int:
         EXT_TO_DELETE = [".arrow", ".json", ".joblib", ".png", ".jpeg", ".jpg"]
 
@@ -62,110 +51,89 @@ class Bioset(Dataset):
         return len(files_to_remove)
 
     @wraps(Dataset.train_test_split)
-    @with_patcher
     def train_test_split(self, *args, **kwargs):
         return super().train_test_split(*args, **kwargs)
 
     @wraps(Dataset._get_cache_file_path)
-    @with_patcher
     def _get_cache_file_path(self, *args, **kwargs):
         return super()._get_cache_file_path(*args, **kwargs)
 
     @wraps(Dataset._new_dataset_with_indices)
-    @with_patcher
     def _new_dataset_with_indices(self, *args, **kwargs):
         return super()._new_dataset_with_indices(*args, **kwargs)
 
     # @wraps(Dataset.add_column)
-    # @with_patcher
     # def add_column(self, *args, **kwargs):
     #     return super().add_column(*args, **kwargs)
 
     # @wraps(Dataset.add_item)
-    # @with_patcher
     # def add_item(self, *args, **kwargs):
     #     return super().add_item(*args, **kwargs)
 
     @wraps(Dataset.cast_column)
-    @with_patcher
     def cast_column(self, *args, **kwargs):
         return super().cast_column(*args, **kwargs)
 
     @wraps(Dataset.filter)
-    @with_patcher
     def filter(self, *args, **kwargs):
         return super().filter(*args, **kwargs)
 
     @wraps(Dataset.flatten)
-    @with_patcher
     def flatten(self, *args, **kwargs):
         return super().flatten(*args, **kwargs)
 
     @wraps(Dataset.flatten_indices)
-    @with_patcher
     def flatten_indices(self, *args, **kwargs):
         return super().flatten_indices(*args, **kwargs)
 
     @wraps(Dataset.map)
-    @with_patcher
     def map(self, *args, **kwargs):
         return super().map(*args, **kwargs)
 
     @wraps(Dataset.remove_columns)
-    @with_patcher
     def remove_columns(self, *args, **kwargs):
         return super().remove_columns(*args, **kwargs)
 
     @classmethod
     @wraps(Dataset.from_csv)
-    @with_patcher
     def from_csv(cls, *args, **kwargs):
         return super().from_csv(*args, **kwargs)
 
     @classmethod
     @wraps(Dataset.from_file)
-    @with_patcher
     def from_file(self, *args, **kwargs):
         return super().from_file(*args, **kwargs)
 
     @wraps(Dataset.rename_column)
-    @with_patcher
     def rename_column(self, *args, **kwargs):
         return super().rename_column(*args, **kwargs)
 
     @wraps(Dataset.rename_columns)
-    @with_patcher
     def rename_columns(self, *args, **kwargs):
         return super().rename_columns(*args, **kwargs)
 
     @wraps(Dataset.select)
-    @with_patcher
     def select(self, *args, **kwargs):
         return super().select(*args, **kwargs)
 
     @wraps(Dataset.select_columns)
-    @with_patcher
     def select_columns(self, *args, **kwargs):
         return super().select_columns(*args, **kwargs)
 
     @wraps(Dataset.shuffle)
-    @with_patcher
     def shuffle(self, *args, **kwargs):
         return super().shuffle(*args, **kwargs)
 
     @wraps(Dataset.sort)
-    @with_patcher
     def sort(self, *args, **kwargs):
         return super().sort(*args, **kwargs)
 
     @wraps(Dataset.save_to_disk)
-    @with_patcher
     def save_to_disk(self, *args, **kwargs):
         return super().save_to_disk(*args, **kwargs)
 
     @classmethod
     @wraps(Dataset.load_from_disk)
-    @with_patcher
     def load_from_disk(self, *args, **kwargs):
         return super().load_from_disk(*args, **kwargs)
 

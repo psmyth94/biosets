@@ -11,7 +11,6 @@ import datasets
 import pandas as pd
 import pandas.api.types as pdt
 import pyarrow as pa
-import pyarrow.json as paj
 import pyarrow.parquet as pq
 from biocore.data_handling import DataHandler
 from biocore.utils.import_util import is_polars_available
@@ -29,23 +28,13 @@ from datasets.packaged_modules.json import json as hf_json
 from datasets.packaged_modules.parquet import parquet as hf_parquet
 from datasets.utils.py_utils import asdict, tqdm
 
-from biosets.integration.datasets.datasets import DatasetsPatcher
-from biosets.packaged_modules.npz.npz import SparseReaderConfig
-from biosets.utils import (
-    as_py,
-    concat_blocks,
-    is_file_name,
-    logging,
-    upcast_tables,
-)
-
-from ...data_files import (
-    FEATURE_METADATA_FILENAMES,
-    SAMPLE_METADATA_FILENAMES,
+from biosets.data_files import (
+    FEATURE_METADATA_PATTERNS,
+    SAMPLE_METADATA_PATTERNS,
     get_feature_metadata_patterns,
     get_metadata_patterns,
 )
-from ...features import (
+from biosets.features import (
     Batch,
     BinClassLabel,
     Metadata,
@@ -53,7 +42,13 @@ from ...features import (
     Sample,
     ValueWithMetadata,
 )
-from ..csv import csv as biosets_csv
+from biosets.packaged_modules.csv import csv as biosets_csv
+from biosets.packaged_modules.npz.npz import SparseReaderConfig
+from biosets.utils import (
+    as_py,
+    is_file_name,
+    logging,
+)
 
 if TYPE_CHECKING:
     import polars as pl
@@ -213,8 +208,8 @@ class BioDataConfig(datasets.BuilderConfig):
         ".parquet",
         ".arrow",
     ]
-    DEFAULT_SAMPLE_METADATA_FILENAMES = SAMPLE_METADATA_FILENAMES
-    DEFAULT_FEATURE_METADATA_FILENAMES = FEATURE_METADATA_FILENAMES
+    DEFAULT_SAMPLE_METADATA_PATTERNS = SAMPLE_METADATA_PATTERNS
+    DEFAULT_FEATURE_METADATA_PATTERNS = FEATURE_METADATA_PATTERNS
 
     def __post_init__(self):
         # Check for invalid characters in the config name
@@ -234,6 +229,39 @@ class BioDataConfig(datasets.BuilderConfig):
                 f"Expected a DataFilesDict in data_files but got {self.data_files}"
             )
 
+        if not self.sample_metadata_files:
+            sample_metadata_dir = self.sample_metadata_dir or self.data_dir
+
+            if sample_metadata_dir is not None:
+                try:
+                    sample_metadata_patterns = get_metadata_patterns(
+                        sample_metadata_dir
+                    )
+                    if sample_metadata_patterns:
+                        self.sample_metadata_files = DataFilesDict.from_patterns(
+                            sample_metadata_patterns,
+                            base_path=sample_metadata_dir,
+                            allowed_extensions=self.ALLOWED_METADATA_EXTENSIONS,
+                        )
+                except FileNotFoundError:
+                    pass
+
+        if not self.feature_metadata_files:
+            feature_metadata_dir = self.feature_metadata_dir or self.data_dir
+            if feature_metadata_dir is not None:
+                try:
+                    feature_metadata_patterns = get_feature_metadata_patterns(
+                        feature_metadata_dir
+                    )
+                    if feature_metadata_patterns:
+                        self.feature_metadata_files = DataFilesDict.from_patterns(
+                            feature_metadata_patterns,
+                            base_path=feature_metadata_dir,
+                            allowed_extensions=self.ALLOWED_METADATA_EXTENSIONS,
+                        )
+                except FileNotFoundError:
+                    pass
+
         self.sample_metadata_files = self._ensure_metadata_files_dict(
             self.sample_metadata_files, self.data_files, is_sample=True
         )
@@ -246,20 +274,15 @@ class BioDataConfig(datasets.BuilderConfig):
         for split, files in self.data_files.items():
             valid_files, origin_metadata = [], []
             for file, metadata in zip(files, self.data_files[split].origin_metadata):
-                file_path = Path(file).resolve().as_posix()
-                base_name = os.path.basename(file)
-                if self.module_path:
-                    extension = "." + os.path.split(self.module_path)[
-                        -1
-                    ].lower().replace(".py", "")
-                else:
-                    extension = os.path.splitext(file)[-1].lower()
-
-                if base_name in self.DEFAULT_SAMPLE_METADATA_FILENAMES:
-                    self.sample_metadata_files[split].append(file_path)
-                elif base_name in self.DEFAULT_FEATURE_METADATA_FILENAMES:
-                    self.feature_metadata_files[split].append(file_path)
-                elif extension in self.EXTENSION_MAP:
+                if not (
+                    self.sample_metadata_files
+                    and split in self.sample_metadata_files
+                    and file in self.sample_metadata_files[split]
+                ) and not (
+                    self.feature_metadata_files
+                    and split in self.feature_metadata_files
+                    and file in self.feature_metadata_files[split]
+                ):
                     valid_files.append(file)
                     origin_metadata.append(metadata)
             data_files_dict[split] = DataFilesList(valid_files, origin_metadata)
@@ -313,6 +336,13 @@ class BioDataConfig(datasets.BuilderConfig):
                 )
             for split in metadata_files:
                 metadata_files[split] = self._ensure_list(metadata_files[split])
+            if not is_sample:
+                missing_keys = set(data_files.keys()) - set(metadata_files.keys())
+                if missing_keys:
+                    for split in missing_keys:
+                        metadata_files[split] = metadata_files[
+                            next(iter(metadata_files))
+                        ]
             return metadata_files
         else:
             metadata_files = self._ensure_list(metadata_files)
@@ -508,8 +538,7 @@ class BioData(datasets.ArrowBasedBuilder):
     _label_map: dict = None
 
     def __init__(self, *args, **kwargs):
-        with DatasetsPatcher():
-            super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def _info(self):
         return datasets.DatasetInfo(features=self.config.features)
@@ -1051,96 +1080,28 @@ class BioData(datasets.ArrowBasedBuilder):
             return sample_metadata
 
     def _read_metadata(self, metadata_files, use_polars: bool = True, to_arrow=True):
-        def setup_readers(format="csv"):
-            if use_polars and is_polars_available():
-                import polars as pl
+        from datasets import load_dataset
 
-                csv = pl.read_csv
-                parquet = pl.read_parquet
+        if not metadata_files:
+            raise ValueError("Empty list of metadata files provided.")
 
-                def arrow_converter(x: pl.DataFrame):
-                    # remove null columns
-                    x = x.filter(~pl.all_horizontal(pl.all().is_null()))
-                    return x.to_arrow() if isinstance(x, pl.DataFrame) else x
+        metadata_ext = os.path.splitext(metadata_files[0])[-1][1:]
 
-                def concat_tables(tables):
-                    return pl.concat(tables, axis=0)
+        if "json" in metadata_ext:
+            metadata_ext = "json"
 
-                tab_sep = {"separator": "\t"}
-            else:
-                csv = pd.read_csv
-                parquet = pd.read_parquet
-
-                def arrow_converter(x: pd.DataFrame):
-                    # remove null columns
-                    x = x.dropna(axis=1, how="all")
-                    return (
-                        pa.Table.from_pandas(x, preserve_index=False)
-                        if isinstance(x, pd.DataFrame)
-                        else x
-                    )
-
-                def concat_tables(tables):
-                    return pd.concat(tables, axis=0, copy=False)
-
-                tab_sep = {"sep": "\t"}
-
-            def arrow(x):
-                return pa.ipc.open_stream(x).read_all()
-
-            def json_file(x):
-                with open(x, "rb") as f:
-                    return paj.read_json(f)
-
-            return {
-                ".csv": (csv, {}, arrow_converter),
-                ".tsv": (csv, tab_sep, arrow_converter),
-                ".txt": (csv, tab_sep, arrow_converter),
-                ".json": (json_file, {}, lambda x: x),
-                ".parquet": (parquet, {}, lambda x: x),
-                ".arrow": (arrow, {}, lambda x: x),
-            }
-
-        try:
-            readers = setup_readers()
-            metadata = []
-            for metadata_file in metadata_files:
-                metadata_ext = os.path.splitext(metadata_file)[-1]
-                if metadata_ext not in readers:
-                    if not metadata_ext:
-                        raise ValueError(
-                            "Metadata file has no extension. Please provide a valid extension."
-                        )
-                    raise ValueError(
-                        f"Metadata file extension '{metadata_ext}' is not supported. "
-                        f"Supported extensions are: {', '.join(readers.keys())}"
-                    )
-                reader, kwargs, arrow_converter = readers.get(metadata_ext)
-                data = arrow_converter(reader(metadata_file, **kwargs))
-                metadata.append(data)
-
-            if len(metadata) == 1:
-                out = metadata[0]
-            else:
-                out = concat_blocks(upcast_tables(metadata), axis=0)
-
-            if to_arrow:
-                return out
-            else:
-                if use_polars and is_polars_available():
-                    import polars as pl
-
-                    return pl.from_arrow(out)
-                else:
-                    return out.to_pandas()
-
-        except Exception as e:
-            if use_polars and is_polars_available():
-                import polars.exceptions as pl_ex
-
-                if isinstance(e, (pl_ex.ComputeError, pl_ex.SchemaError)):
-                    return self._read_metadata(metadata_files, use_polars=False)
-            raise e
+        dataset = next(
+            iter(
+                load_dataset(
+                    metadata_ext,
+                    data_files=metadata_files,
+                    cache_dir=self.cache_dir,
+                ).values()
+            )
+        )
+        if to_arrow:
+            return dataset._data.table
+        return dataset.to_pandas()
 
     def _create_features(
         self,

@@ -1,11 +1,11 @@
 import json
 import os
+import shutil
 import textwrap
 import unittest
 from collections import defaultdict
 from pathlib import Path
 
-import datasets.builder
 import pandas as pd
 import pyarrow as pa
 import pytest
@@ -15,6 +15,8 @@ from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
 from biosets.packaged_modules.csv.csv import Csv
 from biosets.packaged_modules.npz.npz import SparseReader
 from biosets.utils import logging
+
+import datasets.builder
 from datasets.data_files import (
     DataFilesDict,
     DataFilesList,
@@ -94,36 +96,6 @@ def npz_file(tmp_path):
 
 
 @pytest.fixture
-def sample_metadata_file(tmp_path):
-    filename = tmp_path / "sample_metadata.csv"
-    data = textwrap.dedent(
-        """
-        sample,batch,metadata1,metadata2,target
-        sample1,batch1,a,2,a
-        sample2,batch2,b,20,b
-        """
-    )
-    with open(filename, "w") as f:
-        f.write(data)
-    return str(filename)
-
-
-@pytest.fixture
-def sample_metadata_file_2(tmp_path):
-    filename = tmp_path / "sample_metadata_2.csv"
-    data = textwrap.dedent(
-        """
-        sample,batch,metadata1,metadata2,target
-        sample3,batch3,c,3,c
-        sample4,batch4,d,40,d
-        """
-    )
-    with open(filename, "w") as f:
-        f.write(data)
-    return str(filename)
-
-
-@pytest.fixture
 def sample_metadata_file_combined(tmp_path):
     filename = tmp_path / "sample_metadata_combined.csv"
     data = textwrap.dedent(
@@ -188,6 +160,36 @@ def data_with_index_missing_sample_column(tmp_path):
 
 
 @pytest.fixture
+def sample_metadata_file(tmp_path):
+    filename = tmp_path / "sample_metadata.csv"
+    data = textwrap.dedent(
+        """
+        sample,batch,metadata1,metadata2,target
+        sample1,batch1,a,2,a
+        sample2,batch2,b,20,b
+        """
+    )
+    with open(filename, "w") as f:
+        f.write(data)
+    return str(filename)
+
+
+@pytest.fixture
+def sample_metadata_file_2(tmp_path):
+    filename = tmp_path / "sample_metadata_2.csv"
+    data = textwrap.dedent(
+        """
+        sample,batch,metadata1,metadata2,target
+        sample3,batch3,c,3,c
+        sample4,batch4,d,40,d
+        """
+    )
+    with open(filename, "w") as f:
+        f.write(data)
+    return str(filename)
+
+
+@pytest.fixture
 def data_with_samples(tmp_path):
     filename = tmp_path / "data_with_samples.csv"
     data = textwrap.dedent(
@@ -215,6 +217,26 @@ def data_with_samples_2(tmp_path):
     with open(filename, "w") as f:
         f.write(data)
     return str(filename)
+
+
+@pytest.fixture
+def data_dir(
+    tmp_path,
+    data_with_samples,
+    data_with_samples_2,
+    sample_metadata_file,
+    sample_metadata_file_2,
+    feature_metadata_file,
+):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    # copy all files to data_dir
+    shutil.copy(data_with_samples, data_dir / "data_with_samples.csv")
+    shutil.copy(data_with_samples_2, data_dir / "data_with_samples_2.csv")
+    shutil.copy(sample_metadata_file, data_dir / "sample_metadata.csv")
+    shutil.copy(sample_metadata_file_2, data_dir / "sample_metadata_2.csv")
+    shutil.copy(feature_metadata_file, data_dir / "feature_metadata.csv")
+    return str(data_dir)
 
 
 @pytest.fixture
@@ -447,7 +469,7 @@ class TestBioDataConfig(unittest.TestCase):
             feature_metadata_files={"train": self.feature_metadata_file},
         )
         self.assertIn("train", config.feature_metadata_files)
-        self.assertNotIn("test", config.feature_metadata_files)
+        self.assertIn("test", config.feature_metadata_files)
 
     def test_post_init_with_metadata_dir_and_no_sample_metadata_files(self):
         config = self.create_config(
@@ -1548,7 +1570,7 @@ class TestBioData(unittest.TestCase):
 
     def test_read_metadata_none_metadata_files(self):
         metadata_files = None
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError):
             self.data._read_metadata(metadata_files)
 
     def test_read_metadata_empty_metadata_files(self):

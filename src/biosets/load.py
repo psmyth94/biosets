@@ -6,6 +6,7 @@ Functions:
 - concatenate_datasets: Concatenates multiple datasets into a single dataset.
 """
 
+import importlib
 import inspect
 from functools import wraps
 from pathlib import Path
@@ -29,7 +30,12 @@ from datasets import (
 )
 from datasets.load import load_dataset_builder
 
-from .packaged_modules import EXPERIMENT_TYPE_ALIAS, EXPERIMENT_TYPE_TO_BUILDER_CLASS
+
+from .packaged_modules import (
+    EXPERIMENT_TYPE_ALIAS,
+    EXPERIMENT_TYPE_TO_BUILDER_CLASS,
+    _PACKAGED_DATASETS_MODULES,
+)
 
 
 def prepare_load_dataset(
@@ -158,32 +164,34 @@ def load_dataset(*args, **kwargs):
     path = EXPERIMENT_TYPE_ALIAS.get(path, path)
     # only patch if we are loading a custom packaged module
     if path in EXPERIMENT_TYPE_TO_BUILDER_CLASS.keys():
-        from biosets.integration import DatasetsPatcher
-
-        with DatasetsPatcher():
-            if "builder_kwargs" in kwargs:
-                kwargs["builder_kwargs"].update(kwargs)
-            else:
-                kwargs["builder_kwargs"] = kwargs
-            return _load_dataset(path, **kwargs)
+        if "builder_kwargs" in kwargs:
+            kwargs["builder_kwargs"].update(kwargs)
+        else:
+            kwargs["builder_kwargs"] = kwargs
+        # # uncomment for debugging
+        # from biosets.integration.datasets.datasets import DatasetsPatcher
+        #
+        # with DatasetsPatcher():
+        #     return _load_dataset(path, trust_remote_code=True, **kwargs)
+        path = importlib.import_module(f"biosets.packaged_modules.{path}.{path}")
+        path = inspect.getfile(path)
+        kwargs.pop("trust_remote_code", None)
+        return _load_dataset(path, trust_remote_code=True, **kwargs)
     else:
         return _load_dataset(path, *args, **kwargs)
 
 
 def concatenate_datasets(dsets, info=None, split=None, axis=0):
-    from biosets.integration import DatasetsPatcher
-
-    with DatasetsPatcher():
-        if axis == 1:
-            cols = set(dsets[0].column_names)
-            for i in range(1, len(dsets)):
-                if any(col in cols for col in dsets[i].column_names):
-                    cols_i = [col for col in dsets[i].column_names if col not in cols]
-                    dsets[i] = dsets[i].select_columns(cols_i)
-                cols.update(dsets[i].column_names)
-        out = _concatenate_datasets(dsets, info=info, split=split, axis=axis)
-        # out.replays[-1][-1]["axis"] = axis
-        return out
+    if axis == 1:
+        cols = set(dsets[0].column_names)
+        for i in range(1, len(dsets)):
+            if any(col in cols for col in dsets[i].column_names):
+                cols_i = [col for col in dsets[i].column_names if col not in cols]
+                dsets[i] = dsets[i].select_columns(cols_i)
+            cols.update(dsets[i].column_names)
+    out = _concatenate_datasets(dsets, info=info, split=split, axis=axis)
+    # out.replays[-1][-1]["axis"] = axis
+    return out
 
 
 @wraps(_load_from_disk)
@@ -193,15 +201,12 @@ def load_from_disk(
     keep_in_memory: Optional[dict] = None,
     storage_options: Optional[dict] = None,
 ):
-    from biosets.integration import DatasetsPatcher
-
-    with DatasetsPatcher():
-        return _load_from_disk(
-            file_path,
-            fs=fs,
-            keep_in_memory=keep_in_memory,
-            storage_options=storage_options,
-        )
+    return _load_from_disk(
+        file_path,
+        fs=fs,
+        keep_in_memory=keep_in_memory,
+        storage_options=storage_options,
+    )
 
 
 load_dataset.__doc__ = _load_dataset.__doc__
