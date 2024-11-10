@@ -6,13 +6,13 @@ Functions:
 - concatenate_datasets: Concatenates multiple datasets into a single dataset.
 """
 
-import importlib
 import inspect
+from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
 from typing import Optional
+from unittest.mock import patch
 
-# functions to use patch context on
 import datasets.config
 from biocore.utils.inspect import get_kwargs
 from datasets import (
@@ -30,11 +30,29 @@ from datasets import (
 )
 from datasets.load import load_dataset_builder
 
+from biosets.packaged_modules import (
+    _MODULE_SUPPORTS_METADATA,
+    _PACKAGED_DATASETS_MODULES,
+)
+from biosets.streaming import extend_dataset_builder_for_streaming
 
 from .packaged_modules import (
     EXPERIMENT_TYPE_ALIAS,
     EXPERIMENT_TYPE_TO_BUILDER_CLASS,
 )
+
+
+@contextmanager
+def patch_dataset_load():
+    with patch(
+        "datasets.load._PACKAGED_DATASETS_MODULES", _PACKAGED_DATASETS_MODULES
+    ), patch(
+        "datasets.load._MODULE_SUPPORTS_METADATA", _MODULE_SUPPORTS_METADATA
+    ), patch(
+        "datasets.builder.extend_dataset_builder_for_streaming",
+        extend_dataset_builder_for_streaming,
+    ):
+        yield
 
 
 def prepare_load_dataset(
@@ -119,6 +137,7 @@ def load_dataset(*args, **kwargs):
             "Loading a streaming dataset is not implemented. "
             "To load a streaming dataset, you can use the `datasets.load_dataset` instead"
         )
+
     load_dataset_args = inspect.signature(_load_dataset).parameters.keys()
     args_to_kwargs = {
         k: v for k, v in zip(load_dataset_args, args) if k in load_dataset_args
@@ -133,7 +152,8 @@ def load_dataset(*args, **kwargs):
         path, new_kwargs = prepare_load_dataset(path, **kwargs)
         load_dataset_builder_kwargs = get_kwargs(kwargs, load_dataset_builder)
 
-        dataset_builder = load_dataset_builder(path, **load_dataset_builder_kwargs)
+        with patch_dataset_load():
+            dataset_builder = load_dataset_builder(path, **load_dataset_builder_kwargs)
         dataset_builder_args = inspect.signature(
             load_dataset_builder.__init__
         ).parameters.keys()
@@ -167,15 +187,10 @@ def load_dataset(*args, **kwargs):
             kwargs["builder_kwargs"].update(kwargs)
         else:
             kwargs["builder_kwargs"] = kwargs
-        # # uncomment for debugging
-        # from biosets.integration.datasets.datasets import DatasetsPatcher
-        #
-        # with DatasetsPatcher():
-        #     return _load_dataset(path, trust_remote_code=True, **kwargs)
-        path = importlib.import_module(f"biosets.packaged_modules.{path}.{path}")
-        path = inspect.getfile(path)
-        kwargs.pop("trust_remote_code", None)
-        return _load_dataset(path, trust_remote_code=True, **kwargs)
+            # uncomment for debugging
+
+        with patch_dataset_load():
+            return _load_dataset(path, **kwargs)
     else:
         return _load_dataset(path, *args, **kwargs)
 
