@@ -10,7 +10,7 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 from biosets.features import Abundance
-from biosets.load import load_dataset
+from biosets.load import load_dataset, patch_dataset_load
 from biosets.packaged_modules.biodata.biodata import BioData, BioDataConfig
 from biosets.packaged_modules.csv.csv import Csv
 from biosets.packaged_modules.npz.npz import SparseReader
@@ -973,7 +973,8 @@ class TestBioData(unittest.TestCase):
         )
         self.data.config = BioDataConfig(data_files=data_files)
         dl_manager = unittest.mock.MagicMock()
-        split_generators = self.data._split_generators(dl_manager)
+        with patch_dataset_load():
+            split_generators = self.data._split_generators(dl_manager)
         self.assertEqual(len(split_generators), 0)
 
     def test_split_generators_no_data(self):
