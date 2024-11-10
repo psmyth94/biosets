@@ -438,7 +438,7 @@ class BioDataConfig(datasets.BuilderConfig):
             if config_path is None and self.module_path is not None:
                 # in case file path is a zip file and the module path is provided
                 # from datasets.load_dataset_builder within `biosets.load.load_dataset`
-                file_ext = "." + self.module_path.split("/")[-1].replace(".py", "")
+                file_ext = "." + os.path.split(self.module_path)[-1].split(".")[0]
                 config_path, _config_class, hf_config_class = self.EXTENSION_MAP.get(
                     file_ext, (None, None, None)
                 )
@@ -1080,8 +1080,6 @@ class BioData(datasets.ArrowBasedBuilder):
             return sample_metadata
 
     def _read_metadata(self, metadata_files, use_polars: bool = True, to_arrow=True):
-        from datasets import load_dataset
-
         if not metadata_files:
             raise ValueError("Empty list of metadata files provided.")
 
@@ -1092,10 +1090,10 @@ class BioData(datasets.ArrowBasedBuilder):
 
         dataset = next(
             iter(
-                load_dataset(
+                datasets.load_dataset(
                     metadata_ext,
                     data_files=metadata_files,
-                    cache_dir=self.cache_dir,
+                    cache_dir=self._cache_dir_root,
                 ).values()
             )
         )
