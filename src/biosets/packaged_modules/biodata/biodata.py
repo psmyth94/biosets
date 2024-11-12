@@ -122,14 +122,14 @@ class InvalidPath(Exception):
 
 
 SAMPLE_COLUMN_WARN_MSG = (
-    "Could not find the sample column in the sample metadata table.\n"
+    "\nCould not find the sample column in the sample metadata table.\n"
     "Please provide the sample column by setting the `sample_column` argument. For example:\n"
     "   >>> `load_dataset(..., sample_column='samples')`.\n"
     "Sample metadata will be ignored."
 )
 
 FEATURE_COLUMN_WARN_MSG = (
-    "Could not find the feature column in the feature metadata table.\n"
+    "\nCould not find the feature column in the feature metadata table.\n"
     "Please provide the feature column by setting the `feature_column` argument. For example:\n"
     "   >>> `load_dataset(..., feature_column='my_feature_column')`.\n"
     "Feature metadata will be ignored."
@@ -217,8 +217,10 @@ class BioDataConfig(datasets.BuilderConfig):
         # Check for invalid characters in the config name
         if any(char in self.name for char in INVALID_WINDOWS_CHARACTERS_IN_PATH):
             raise datasets.builder.InvalidConfigName(
-                f"Bad characters from black list '{INVALID_WINDOWS_CHARACTERS_IN_PATH}' found in '{self.name}'. "
-                f"They could create issues when creating a directory for this config on Windows filesystem."
+                "Bad characters from black list "
+                f"'{INVALID_WINDOWS_CHARACTERS_IN_PATH}' found in '{self.name}'. "
+                "They could create issues when creating a directory for this config "
+                "on Windows filesystem."
             )
 
         # Validate and process data_files
@@ -611,7 +613,7 @@ class BioData(datasets.ArrowBasedBuilder):
             # since the metadata columns were specified, we notify the user of any columns that were not found
             if not_found_cols:
                 logger.warning_once(
-                    f"Could not find the following metadata columns in the table: {not_found_cols}"
+                    f"\nCould not find the following metadata columns in the table: {not_found_cols}"
                 )
 
         # gather the sample metadata columns if not already specified
@@ -649,7 +651,7 @@ class BioData(datasets.ArrowBasedBuilder):
                 ) - set(data_features)
                 if missing_columns:
                     logger.warning_once(
-                        f"Could not find the following columns in the data table: {missing_columns}"
+                        f"\nCould not find the following columns in the data table: {missing_columns}"
                     )
             else:
                 logger.warning_once(FEATURE_COLUMN_WARN_MSG)
@@ -976,7 +978,7 @@ class BioData(datasets.ArrowBasedBuilder):
                 table_dims = DataHandler.get_shape(table)
                 if feature_metadata_dims[0] == table_dims[1]:
                     logger.warning_once(
-                        "No data columns were provided, but the number of columns "
+                        "\nNo data columns were provided, but the number of columns "
                         "in the data table matches the number of features in the "
                         "feature metadata. Using feature metadata as column names."
                     )
@@ -989,7 +991,7 @@ class BioData(datasets.ArrowBasedBuilder):
                     table = DataHandler.set_column_names(table, features)
                 else:
                     logger.warning_once(
-                        "Feature metadata was provided along with an npz file, but the "
+                        "\nFeature metadata was provided along with an npz file, but the "
                         "number of features in the metadata does not match the number "
                         "of columns in the data table. Ignoring feature metadata."
                     )
@@ -1354,12 +1356,12 @@ def _infer_column_name(
     if column_name:
         if name_in_features and not name_in_metadata:
             logger.warning_once(
-                f"'{column_name}' was found in the data table but not in the metadata table.\n"
+                f"\n'{column_name}' was found in the data table but not in the metadata table.\n"
                 f"Please add or rename the column in the metadata table.\n"
             )
         elif not name_in_features and name_in_metadata:
             logger.warning_once(
-                f"'{column_name}' was found in the metadata table but not in the data table.\n"
+                f"\n'{column_name}' was found in the metadata table but not in the data table.\n"
                 f"Please add or rename the column in the data table.\n"
             )
         else:
@@ -1433,7 +1435,7 @@ def _infer_column_name(
                     logger.debug(f"Pattern match found: {dcol} -> {col}")
         if other_possible_col:
             logger.warning_once(
-                f"Two possible matches found for the {default_column_name} column:\n"
+                f"\nTwo possible matches found for the {default_column_name} column:\n"
                 f"1. '{possible_col}' in {which_table} table\n"
                 f"2. '{other_possible_col}' in {other_table} table\n"
                 "Please rename the columns or provide the `sample_column` argument to "
@@ -1443,7 +1445,7 @@ def _infer_column_name(
             )
         else:
             logger.warning_once(
-                f"A match for the {default_column_name} column was found in "
+                f"\nA match for the {default_column_name} column was found in "
                 f"{which_table} table: '{possible_col}'\n"
                 f"But it was not found in {other_table} table.\n"
                 "Please add or rename the column in the appropriate table.\n"
@@ -1462,7 +1464,7 @@ def _infer_column_name(
         raise _COLUMN_TO_ERROR[default_column_name](err_msg)
 
     logger.warning_once(
-        f"Could not find the {default_column_name} column in " + generate_err_msg()
+        f"\nCould not find the {default_column_name} column in " + generate_err_msg()
     )
     return None
 
