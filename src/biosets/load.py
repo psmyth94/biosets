@@ -159,22 +159,46 @@ def load_dataset(*args, **kwargs):
             load_dataset_builder.__init__
         ).parameters.keys()
         matching_args = set(dataset_builder_args).intersection(load_dataset_args)
-        new_kwargs.update({k: getattr(dataset_builder, k) for k in matching_args})
+        new_kwargs.update(
+            {
+                k: getattr(dataset_builder, k)
+                for k in matching_args
+                if k not in existing_kwargs
+            }
+        )
 
         builder_config = dataset_builder.config
         builder_config_args = inspect.signature(
             builder_config.__init__
         ).parameters.keys()
         matching_args = set(builder_config_args).intersection(load_dataset_args)
-        new_kwargs.update({k: getattr(builder_config, k) for k in matching_args})
+        new_kwargs.update(
+            {
+                k: getattr(builder_config, k)
+                for k in matching_args
+                if k not in existing_kwargs
+            }
+        )
 
         builder_info = dataset_builder.info
         builder_info_args = inspect.signature(builder_info.__init__).parameters.keys()
         matching_args = set(builder_info_args).intersection(load_dataset_args)
-        new_kwargs.update({k: getattr(builder_info, k) for k in matching_args})
+        new_kwargs.update(
+            {
+                k: getattr(builder_info, k)
+                for k in matching_args
+                if k not in existing_kwargs
+            }
+        )
 
         experiment_type = new_kwargs.pop("experiment_type", "biodata")
         new_kwargs["module_path"] = inspect.getfile(dataset_builder.__class__)
+
+        if not dataset_builder.__module__.startswith("biosets") and kwargs.get(
+            "add_missing_columns", False
+        ):
+            new_kwargs["features"] = None
+
         return load_dataset(
             **new_kwargs,
             experiment_type=experiment_type,
