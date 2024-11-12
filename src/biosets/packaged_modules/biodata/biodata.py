@@ -36,6 +36,7 @@ from biosets.data_files import (
     get_feature_metadata_patterns,
     get_metadata_patterns,
 )
+from biosets.download import SchemaManager
 from biosets.features import (
     Batch,
     BinClassLabel,
@@ -678,61 +679,24 @@ class BioData(datasets.ArrowBasedBuilder):
             )
 
         generator = datasets.load_dataset_builder(**self.config.data_kwargs)
-        data_splits = generator._split_generators(dl_manager)
+        if (
+            self.config.features is None
+            and self.config.add_missing_columns
+            or self.config.zero_as_missing
+        ):
+            _dl_manager = SchemaManager.from_dl_manager(dl_manager)
+        else:
+            _dl_manager = dl_manager
+
+        data_splits = generator._split_generators(_dl_manager)
+        if hasattr(_dl_manager, "features"):
+            self.info.features = Features(_dl_manager.features)
+            generator.info.features = self.info.features
 
         splits = []
         for data_split in data_splits:
             # retrieve the labels from the metadata table if not already specified
 
-            if self.config.features is None:
-                # don't rely on the features from the data file
-                if (
-                    self.config.add_missing_columns or self.config.zero_as_missing
-                ) and any(
-                    self.config.module_path.endswith(f)
-                    for f in ["parquet.py", "arrow.py"]
-                ):
-                    self.info.features = Features()
-                    if (
-                        len(self.config.data_files[data_split.name]) > 1
-                        and self.config.use_first_schema is None
-                    ):
-                        file_type = self.config.module_path.split("/")[-1].split(".")[0]
-                        logger.warning(
-                            f"Multiple {file_type} files were provided. The schema "
-                            "will use the combined schema of all data files. To use "
-                            "the schema of only the first file, set "
-                            "`use_first_schema=True`. To turn off this warning, set "
-                            "`use_first_schema=False`."
-                        )
-                    num_files = len(self.config.data_files[data_split.name])
-                    for idx, file in tqdm(
-                        enumerate(
-                            itertools.chain.from_iterable(
-                                [self.config.data_files[data_split.name]]
-                            )
-                        ),
-                        total=num_files,
-                        desc=f"Loading schema for files in {data_split.name}",
-                    ):
-                        with open(file, "rb") as f:
-                            if self.config.module_path.endswith("parquet.py"):
-                                self.info.features.update(
-                                    datasets.Features.from_arrow_schema(
-                                        pq.read_schema(f)
-                                    )
-                                )
-                            elif self.config.module_path.endswith("arrow.py"):
-                                self.info.features.update(
-                                    datasets.Features.from_arrow_schema(
-                                        pa.ipc.read_schema(f)
-                                    )
-                                )
-                        if self.config.use_first_schema:
-                            break
-                    generator.info.features = self.info.features
-            else:
-                self.info.features = self.config.features
             splits.append(
                 datasets.SplitGenerator(
                     name=data_split.name,
