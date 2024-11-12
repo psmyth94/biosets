@@ -26,7 +26,9 @@ from datasets.packaged_modules.arrow import arrow as hf_arrow
 from datasets.packaged_modules.csv import csv as hf_csv
 from datasets.packaged_modules.json import json as hf_json
 from datasets.packaged_modules.parquet import parquet as hf_parquet
-from datasets.utils.py_utils import asdict, tqdm
+from datasets.utils import tqdm as hf_tqdm
+from datasets.utils.py_utils import asdict
+from tqdm.contrib.concurrent import thread_map
 
 from biosets.data_files import (
     FEATURE_METADATA_PATTERNS,
