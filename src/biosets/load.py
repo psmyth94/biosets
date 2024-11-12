@@ -149,6 +149,7 @@ def load_dataset(*args, **kwargs):
         path in EXPERIMENT_TYPE_ALIAS.keys()
         or path in EXPERIMENT_TYPE_TO_BUILDER_CLASS.keys()
     ):
+        existing_kwargs = kwargs.keys()
         path, new_kwargs = prepare_load_dataset(path, **kwargs)
         load_dataset_builder_kwargs = get_kwargs(kwargs, load_dataset_builder)
 
