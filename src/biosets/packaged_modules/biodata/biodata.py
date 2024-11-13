@@ -168,16 +168,12 @@ class BioDataConfig(datasets.BuilderConfig):
     feature_column: Optional[str] = None
     columns: Optional[List[str]] = None
 
-    drop_labels: bool = None
-    drop_samples: bool = None
-    drop_batches: bool = None
-    drop_metadata: bool = None
-    drop_feature_metadata: bool = None
+    encode_labels: bool = None
 
     builder_kwargs: dict = None
-    data_kwargs: dict = None
-    metadata_kwargs: dict = None
-    feature_metadata_kwargs: dict = None
+    data_builder_kwargs: dict = None
+    sample_metadata_builder_kwargs: dict = None
+    feature_metadata_builder_kwargs: dict = None
 
     use_polars: bool = True
 
