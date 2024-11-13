@@ -1197,7 +1197,9 @@ class BioData(datasets.ArrowBasedBuilder):
             file_index += 1
             yield key, table
 
-    def _load_metadata(self, file_index, sample_metadata=None, split_name=None):
+    def _load_metadata(
+        self, table, file_key, gen_table_iter, sample_metadata=None, split_name=None
+    ):
         if self.config.sample_metadata_files:
             if not isinstance(self.config.sample_metadata_files, DataFilesDict):
                 raise ValueError(
@@ -1207,40 +1209,59 @@ class BioData(datasets.ArrowBasedBuilder):
                 return None
 
             files = self.config.sample_metadata_files[split_name]
-            if len(files) == 1:
-                if file_index != 0:
+            if len(files) == 1 and sample_metadata is not None:
+                return sample_metadata
+
+            if len(files) > 1 and len(self.config.data_files[split_name]) == 1:
+                # Load the entire metadata table if only one data file is provided
+                if sample_metadata is not None:
                     return sample_metadata
-            # only use file_index if data files are sharded
-            elif len(self.config.data_files[split_name]) > 1:
-                files = [files[file_index]]
+                tables = []
+                total_rows = 0
+                out = next(gen_table_iter)
+                while out is not None:
+                    _, row = out
+                    total_rows += row.num_rows
+                    tables.append(row)
+                    out = next(gen_table_iter, None)
+                sample_metadata = pa.concat_tables(tables, promote_options="default")
+                return DataHandler.to_pandas(sample_metadata)
 
-            sample_metadata = self._read_metadata(files, to_arrow=False)
-            # TODO: temporary fix for not getting a pandas DataFrame
-            if isinstance(sample_metadata, pa.Table):
-                sample_metadata = DataHandler.to_pandas(sample_metadata)
-            return sample_metadata
+            sample_metadata = next(gen_table_iter)[1]
+            return DataHandler.to_pandas(sample_metadata)
 
-    def _read_metadata(self, metadata_files, use_polars: bool = True, to_arrow=True):
-        if not metadata_files:
-            raise ValueError("Empty list of metadata files provided.")
-
-        metadata_ext = os.path.splitext(metadata_files[0])[-1][1:]
-
-        if "json" in metadata_ext:
-            metadata_ext = "json"
-
-        dataset = next(
-            iter(
-                datasets.load_dataset(
-                    metadata_ext,
-                    data_files=metadata_files,
-                    cache_dir=self._cache_dir_root,
-                ).values()
+    def _create_target_feature(
+        self, schema: dict, dtype: pa.DataType, return_error=True
+    ):
+        if self.config.labels and is_classification_type(dtype):
+            if self.config.positive_labels or self.config.negative_labels:
+                schema[self.TARGET_COLUMN] = BinClassLabel(
+                    positive_labels=self.config.positive_labels,
+                    negative_labels=self.config.negative_labels,
+                    names=self.config.labels,
+                    id=self.config.target_column,
+                )
+            else:
+                schema[self.TARGET_COLUMN] = ClassLabel(
+                    num_classes=len(self.config.labels),
+                    names=self.config.labels,
+                    id=self.config.target_column,
+                )
+        elif is_regression_type(dtype):
+            schema[self.TARGET_COLUMN] = RegressionTarget(
+                dtype.dtype, id=self.config.target_column
             )
-        )
-        if to_arrow:
-            return dataset._data.table
-        return dataset.to_pandas()
+        elif return_error:
+            raise ValueError(
+                "The dataset seems to be a classification task, but the labels are not provided.\n"
+                "Please provide the labels in the `labels` argument. For example:\n"
+                "   >>> dataset = dataset.load_dataset('csv', data_files='data.csv', labels=[0, 1, 2])\n"
+                "Or provide a sample metadata table with the labels column. For example:\n"
+                "   >>> # metadata.csv contains a column named 'disease state' with labels 0, 1, 2\n"
+                "   >>> dataset.load_dataset('csv', data_files='data.csv', sample_metadata_files='metadata.csv', target_column='disease state')\n"
+            )
+
+        return schema
 
     def _create_features(
         self,
