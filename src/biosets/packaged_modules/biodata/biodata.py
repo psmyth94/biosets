@@ -1074,7 +1074,11 @@ class BioData(datasets.ArrowBasedBuilder):
             stored_metadata_schema = table.schema.metadata or {}
 
             sample_metadata = self._load_metadata(
-                file_index, sample_metadata, split_name=split_name
+                table,
+                key,
+                sample_metadata_generator_iter,
+                sample_metadata,
+                split_name=split_name,
             )
             if check_columns:
                 features = table.column_names
@@ -1119,7 +1123,7 @@ class BioData(datasets.ArrowBasedBuilder):
                         "of columns in the data table. Ignoring feature metadata."
                     )
 
-            table = self._add_sample_metadata(table, sample_metadata)
+            table = self._add_sample_metadata(table, generator, sample_metadata)
             table = self._prepare_labels(table, sample_metadata, split_name=split_name)
             # table = self._prepare_data(table)
             metadata_schema = None
