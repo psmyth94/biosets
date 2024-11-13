@@ -102,13 +102,21 @@ class SchemaManager(DownloadManager):
         elif file.endswith(".arrow") or file.endswith(".feather"):
             with open(file, "rb") as f:
                 return Features.from_arrow_schema(pa.ipc.read_schema(f))
-        elif file.endswith(".csv") and is_polars_available():
-            import polars as pl
+        elif is_polars_available():
+            if file.endswith(".csv"):
+                import polars as pl
 
-            schema = pl.scan_csv(file).collect_schema()
+                schema = pl.scan_csv(file).collect_schema()
 
-            schema = pl.DataFrame(schema=schema).to_arrow().schema
-            return Features.from_arrow_schema(schema)
+                schema = pl.DataFrame(schema=schema).to_arrow().schema
+                return Features.from_arrow_schema(schema)
+            elif file.endswith(".tsv") or file.endswith(".txt"):
+                import polars as pl
+
+                schema = pl.scan_csv(file, separator="\t").collect_schema()
+
+                schema = pl.DataFrame(schema=schema).to_arrow().schema
+                return Features.from_arrow_schema(schema)
 
     def _download_single(
         self, url_or_filename: str, download_config: DownloadConfig, get_schema=False
