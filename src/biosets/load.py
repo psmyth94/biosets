@@ -230,6 +230,7 @@ def load_dataset(*args, **kwargs):
         ):
             new_kwargs["features"] = None
 
+        new_kwargs["builder_kwargs"] = builder_kwargs
         return load_dataset(
             **new_kwargs,
             experiment_type=experiment_type,
