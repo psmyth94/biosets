@@ -59,7 +59,7 @@ logger = logging.get_logger(__name__)
 SAMPLE_COLUMN = "samples"
 BATCH_COLUMN = "batches"
 METADATA_COLUMN = "metadata"
-TARGET_COLUMN = "labels"
+TARGET_COLUMN = "encoded_labels"
 FEATURE_COLUMN = "features"
 DTYPE_MAP = {
     "double": "float32",
