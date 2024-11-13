@@ -1144,7 +1144,7 @@ class BioData(datasets.ArrowBasedBuilder):
                 metadata_schema = Features.from_arrow_schema(table.schema)
 
             if not self.info.features:
-                if self.config.features is not None:
+                if self.config.features:
                     self.info.features = self.config.features
                 else:
                     self.info.features = self._create_features(
@@ -1152,8 +1152,10 @@ class BioData(datasets.ArrowBasedBuilder):
                         column_names=DataHandler.get_column_names(table),
                         feature_metadata=feature_metadata_dict,
                     )
-            if self.info.features:
-                missing_columns = set(self.info.features) - set(table.column_names)
+                    self.config.features = self.info.features
+
+            if self.config.features:
+                missing_columns = set(self.config.features) - set(table.column_names)
                 if missing_columns:
                     if self.config.add_missing_columns:
                         num_rows = table.num_rows
@@ -1163,7 +1165,15 @@ class BioData(datasets.ArrowBasedBuilder):
                             for name in missing_columns
                         }
                         combined_columns = {**table.to_pydict(), **new_columns}
-                        table = pa.table(combined_columns)
+                        table = pa.table(
+                            {k: combined_columns[k] for k in self.config.features},
+                            schema=self.config.features.arrow_schema,
+                        )
+                else:
+                    table = DataHandler.select_columns(
+                        table, list(self.config.features.keys())
+                    )
+                    table = table.cast(self.config.features.arrow_schema)
 
             metadata_dump = {}
             for k, v in stored_metadata_schema.items():
@@ -1177,7 +1187,7 @@ class BioData(datasets.ArrowBasedBuilder):
                 "info", {}
             )
             metadata_dump["huggingface"]["info"]["features"] = asdict(
-                self.info.features
+                self.config.features
             )
 
             table = table.replace_schema_metadata(
