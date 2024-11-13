@@ -157,8 +157,12 @@ def load_dataset(*args, **kwargs):
             dataset_builder = load_dataset_builder(path, **load_dataset_builder_kwargs)
         dataset_builder_args = inspect.signature(
             load_dataset_builder.__init__
-        ).parameters.keys()
+        ).parameters
+        dataset_builder_args = [
+            p.name for p in dataset_builder_args.values() if p != p.VAR_KEYWORD
+        ]
         matching_args = set(dataset_builder_args).intersection(load_dataset_args)
+        builder_kwargs = kwargs.get("builder_kwargs", {})
         new_kwargs.update(
             {
                 k: getattr(dataset_builder, k)
