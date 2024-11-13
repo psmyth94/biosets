@@ -479,16 +479,17 @@ class BioDataConfig(datasets.BuilderConfig):
             processed_metadata_files[split] = metadata_files
         return DataFilesDict(processed_metadata_files)
 
-    def _get_builder_kwargs(self, files):
+    def _get_builder_kwargs(self, files, builder_kwargs):
         if files is None:
-            return {}
-        builder_kwargs = {}
+            return {}, None, None
+        new_builder_kwargs = {}
         iter_files = files
 
         if isinstance(files, (str, list, tuple)):
             iter_files = [files]
         if isinstance(iter_files, (dict, DataFilesDict)):
             iter_files = iter_files.values()
+        config_path, module_path = None, None
         for file in itertools.chain.from_iterable(iter_files):
             file_ext = os.path.splitext(file)[-1].lower()
 
@@ -504,47 +505,34 @@ class BioDataConfig(datasets.BuilderConfig):
                     file_ext, (None, None, None)
                 )
             if config_path is not None:
-                builder_kwargs = {}
-                builder_kwargs["data_files"] = files
+                new_builder_kwargs = {}
+                new_builder_kwargs["data_files"] = files
                 if hf_config_class:
-                    builder_kwargs["hf_kwargs"] = {}
-                if self.builder_kwargs:
-                    for k, v in self.builder_kwargs.items():
-                        if k in ["data_dir", "name"]:
+                    new_builder_kwargs["hf_kwargs"] = {}
+                if builder_kwargs:
+                    for k, v in builder_kwargs.items():
+                        if k in ["data_dir", "name"] or k in new_builder_kwargs:
                             continue
                         if k in _config_class.__dataclass_fields__:
-                            builder_kwargs[k] = v
+                            new_builder_kwargs[k] = v
                         if (
                             hf_config_class
                             and k in hf_config_class.__dataclass_fields__
                         ):
-                            builder_kwargs["hf_kwargs"][k] = v
-                for k, v in self.__dict__.items():
-                    if k in ["data_dir", "name"]:
-                        continue
-                    if k in _config_class.__dataclass_fields__:
-                        builder_kwargs[k] = v
-                    if hf_config_class and k in hf_config_class.__dataclass_fields__:
-                        builder_kwargs["hf_kwargs"][k] = v
+                            new_builder_kwargs["hf_kwargs"][k] = v
                 if file_ext in [".tsv", ".txt"]:
-                    if is_polars_available() and "separator" not in builder_kwargs:
-                        builder_kwargs["separator"] = "\t"
+                    if is_polars_available() and "sep" not in new_builder_kwargs:
+                        new_builder_kwargs["sep"] = "\t"
                     if (
-                        "hf_kwargs" in builder_kwargs
-                        and "sep" not in builder_kwargs["hf_kwargs"]
+                        "hf_kwargs" in new_builder_kwargs
+                        and "sep" not in new_builder_kwargs["hf_kwargs"]
                     ):
-                        builder_kwargs["hf_kwargs"]["sep"] = "\t"
+                        new_builder_kwargs["hf_kwargs"]["sep"] = "\t"
                 module_path = inspect.getfile(_config_class)
-                self.config_path = config_path
-                self.module_path = module_path
-                if "datasets" == _config_class.__module__.split(".")[0]:
-                    builder_kwargs["path"] = config_path
-                else:
-                    builder_kwargs["path"] = config_path
-                    # builder_kwargs["path"] = module_path
-                    # builder_kwargs["trust_remote_code"] = True
+                if _config_class.__module__.split(".")[0] in ["datasets", "biosets"]:
+                    new_builder_kwargs["path"] = config_path
                 break
-        return builder_kwargs
+        return new_builder_kwargs, config_path, module_path
 
 
 class BioData(datasets.ArrowBasedBuilder):
