@@ -1298,8 +1298,8 @@ class BioData(datasets.ArrowBasedBuilder):
             new_schema={},
         ):
             for k, v in _schema.items():
-                if self.info.features:
-                    v_ = self.info.features.get(k, None)
+                if self.config.features:
+                    v_ = self.config.features.get(k, None)
                     if v_:
                         new_schema[k] = v_
                         continue
