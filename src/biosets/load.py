@@ -170,11 +170,21 @@ def load_dataset(*args, **kwargs):
                 if k not in existing_kwargs
             }
         )
+        builder_kwargs.update(
+            {
+                k: new_kwargs.pop(k, None) or getattr(dataset_builder, k)
+                for k in dataset_builder_args
+                if k not in existing_kwargs
+                and k not in matching_args
+                and k not in ["args", "kwargs"]
+            }
+        )
 
         builder_config = dataset_builder.config
-        builder_config_args = inspect.signature(
-            builder_config.__init__
-        ).parameters.keys()
+        builder_config_args = inspect.signature(builder_config.__init__).parameters
+        builder_config_args = [
+            p.name for p in builder_config_args.values() if p != p.VAR_KEYWORD
+        ]
         matching_args = set(builder_config_args).intersection(load_dataset_args)
         new_kwargs.update(
             {
