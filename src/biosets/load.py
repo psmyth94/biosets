@@ -214,6 +214,13 @@ def load_dataset(*args, **kwargs):
                 if k not in existing_kwargs
             }
         )
+        builder_kwargs.update(
+            {
+                k: new_kwargs.pop(k, None) or getattr(builder_info, k)
+                for k in builder_info_args
+                if k not in matching_args
+            }
+        )
 
         experiment_type = new_kwargs.pop("experiment_type", "biodata")
         new_kwargs["module_path"] = inspect.getfile(dataset_builder.__class__)
