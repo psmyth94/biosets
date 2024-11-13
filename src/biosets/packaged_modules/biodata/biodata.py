@@ -585,6 +585,7 @@ class BioData(datasets.ArrowBasedBuilder):
     _drop_columns = set()
     _all_columns = set()
     _label_map: dict = None
+    _missing_label_value = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -784,18 +785,26 @@ class BioData(datasets.ArrowBasedBuilder):
                     else:
                         self.config.labels.append("positive")
 
+                if self._missing_label_value is None:
+                    self._missing_label_value = -1
                 if not self._label_map:
                     self._label_map = {}
                     if self.config.positive_labels:
                         self._label_map.update(
                             {label: 1 for label in self.config.positive_labels}
                         )
+                        self._missing_label_value = 0
                     if self.config.negative_labels:
                         self._label_map.update(
                             {label: 0 for label in self.config.negative_labels}
                         )
+                        self._missing_label_value = 1
+
+                    if self.config.positive_labels and self.config.negative_labels:
+                        self._missing_label_value = -1
+
                 bin_labels = [
-                    self._label_map.get(label, -1)
+                    self._label_map.get(label, self._missing_label_value)
                     for label in DataHandler.to_list(
                         DataHandler.select_column(tbl, self.config.target_column)
                     )
