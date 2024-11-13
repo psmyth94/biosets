@@ -974,64 +974,97 @@ class BioData(datasets.ArrowBasedBuilder):
     def _prepare_labels(self, table, sample_metadata=None, split_name=None):
         if self.config.target_column:
             labels = self.config.labels
-            if (
-                not self.config.positive_labels
-                and not self.config.negative_labels
-                and not self.config.labels
-            ):
+            if self.config.encode_labels or self.config.encode_labels is None:
                 if (
-                    self.config.sample_metadata_files
-                    and len(self.config.sample_metadata_files.get(split_name, [])) == 1
-                    and self.config.target_column
-                    in DataHandler.get_column_names(sample_metadata)
+                    not self.config.positive_labels
+                    and not self.config.negative_labels
+                    and not self.config.labels
                 ):
-                    all_labels = DataHandler.to_list(
-                        DataHandler.select_column(
-                            sample_metadata, self.config.target_column
-                        )
-                    )
-                    labels = list(set(all_labels))
-                elif len(
-                    self.config.data_files[split_name]
-                ) == 1 and self.config.target_column in DataHandler.get_column_names(
-                    table
-                ):
-                    all_labels = DataHandler.to_list(
-                        DataHandler.select_column(table, self.config.target_column)
-                    )
-                    labels = list(set(all_labels))
-                else:
                     if (
-                        sample_metadata is not None
+                        self.config.sample_metadata_files
+                        and len(self.config.sample_metadata_files.get(split_name, []))
+                        == 1
                         and self.config.target_column
                         in DataHandler.get_column_names(sample_metadata)
                     ):
-                        raise ValueError(
-                            "Labels must be provided if multiple sample metadata files "
-                            "are provided. Either set `labels`, `positive_labels` "
-                            "and/or `negative_labels` in `load_dataset`."
+                        all_labels = DataHandler.to_list(
+                            DataHandler.select_column(
+                                sample_metadata, self.config.target_column
+                            )
                         )
+                        labels = list(set(all_labels))
+                    elif (
+                        len(self.config.data_files[split_name]) == 1
+                        and self.config.target_column
+                        in DataHandler.get_column_names(table)
+                    ):
+                        all_labels = DataHandler.to_list(
+                            DataHandler.select_column(table, self.config.target_column)
+                        )
+                        labels = list(set(all_labels))
                     else:
-                        raise ValueError(
-                            "Labels must be provided if multiple data files "
-                            "are provided and the target column is found in the "
-                            "data table. Either set `labels`, `positive_labels` "
-                            "and/or `negative_labels` in `load_dataset`."
-                        )
+                        if (
+                            sample_metadata is not None
+                            and self.config.target_column
+                            in DataHandler.get_column_names(sample_metadata)
+                        ):
+                            raise ValueError(
+                                "Labels must be provided if multiple sample metadata files "
+                                "are provided. Either set `labels`, `positive_labels` "
+                                "and/or `negative_labels` in `load_dataset`."
+                            )
+                        else:
+                            raise ValueError(
+                                "Labels must be provided if multiple data files "
+                                "are provided and the target column is found in the "
+                                "data table. Either set `labels`, `positive_labels` "
+                                "and/or `negative_labels` in `load_dataset`."
+                            )
 
-            table = self._set_labels(table, labels=labels)
+                table = self._set_labels(table, labels=labels)
+            if (
+                self.config.features is not None
+                and self.TARGET_COLUMN not in self.config.features
+                and self.TARGET_COLUMN in table.column_names
+            ):
+                self.config.features = self._create_target_feature(
+                    self.config.features,
+                    table.schema.field(self.TARGET_COLUMN).type,
+                    return_error=False,
+                )
         return table
 
     def _generate_tables(self, generator: "ArrowBasedBuilder", *args, **gen_kwargs):
         """Generate tables from a list of generators."""
 
         split_name = gen_kwargs.pop("split_name")
-        feature_metadata = None
-        if self.config.feature_metadata_files:
-            feature_metadata = self._read_metadata(
-                self.config.feature_metadata_files[split_name]
+        sample_metadata_generator = gen_kwargs.pop("sample_metadata_generator", None)
+        sample_metadata_generator_kwargs = gen_kwargs.pop(
+            "sample_metadata_generator_kwargs", None
+        )
+
+        sample_metadata_generator_iter = None
+        if sample_metadata_generator:
+            sample_metadata_generator_iter = sample_metadata_generator._generate_tables(
+                **sample_metadata_generator_kwargs
             )
 
+        feature_metadata_generator = gen_kwargs.pop("feature_metadata_generator", None)
+        feature_metadata_generator_kwargs = gen_kwargs.pop(
+            "feature_metadata_generator_kwargs", None
+        )
+
+        feature_metadata = None
+        if self.config.feature_metadata_files:
+            feature_metadata = [
+                tbl
+                for _, tbl in feature_metadata_generator._generate_tables(
+                    **feature_metadata_generator_kwargs
+                )
+            ]
+            feature_metadata = pa.concat_tables(
+                feature_metadata, promote_options="default"
+            )
         check_columns = True
         feature_metadata_dict = None
         # key might not correspond to the current index of the file received (e.g. npz)
