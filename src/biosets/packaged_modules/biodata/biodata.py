@@ -894,7 +894,7 @@ class BioData(datasets.ArrowBasedBuilder):
 
         return tbl
 
-    def _add_sample_metadata(self, table, sample_metadata=None):
+    def _add_sample_metadata(self, table, data_generator, sample_metadata=None):
         if self.config.sample_metadata_files:
             if self.config.sample_column in table.column_names:
                 colliding_names = list(
@@ -933,6 +933,16 @@ class BioData(datasets.ArrowBasedBuilder):
                         .to_arrow()
                     )
             else:
+                table_dim = DataHandler.get_shape(table)
+                sample_metadata_dim = DataHandler.get_shape(sample_metadata)
+                if table_dim[0] != sample_metadata_dim[0]:
+                    raise ValueError(
+                        "No sample column found in the data table and the number of "
+                        "rows in the sample metadata table does not match the number "
+                        "of rows in the data table. Please provide a sample column in "
+                        "the data table or ensure that the number of rows in the sample "
+                        "metadata table matches the number of rows in the data table."
+                    )
                 # we are gonna assume that the row order in metadata is the same as the data
                 colliding_names = list(
                     (set(table.column_names) & set(sample_metadata.columns))
