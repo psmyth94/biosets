@@ -314,7 +314,70 @@ class BioDataConfig(datasets.BuilderConfig):
                     f"of sharded data files in split '{split}'."
                 )
 
-        self.data_kwargs = self._get_builder_kwargs(self.data_files)
+        if self.data_builder_kwargs is None:
+            self.data_builder_kwargs = self.builder_kwargs
+        else:
+            self.builder_kwargs.update(self.data_builder_kwargs)
+            self.data_builder_kwargs = self.builder_kwargs
+        self.data_builder_kwargs, self.config_path, self.module_path = (
+            self._get_builder_kwargs(self.data_files, self.data_builder_kwargs)
+        )
+
+        if self.sample_metadata_builder_kwargs is None:
+            self.sample_metadata_builder_kwargs = {}
+        if (
+            "batch_size" not in self.sample_metadata_builder_kwargs
+            and "batch_size" in self.data_builder_kwargs
+            and all(
+                len(f1) == len(f2)
+                for f1, f2 in zip(
+                    self.data_files.values(), self.sample_metadata_files.values()
+                )
+            )
+        ):
+            self.sample_metadata_builder_kwargs["batch_size"] = (
+                self.data_builder_kwargs["batch_size"]
+            )
+        elif (
+            "batch_size" in self.sample_metadata_builder_kwargs
+            and self.sample_metadata_builder_kwargs["batch_size"] is not None
+            and not all(
+                len(f1) == len(f2)
+                for f1, f2 in zip(
+                    self.data_files.values(), self.sample_metadata_files.values()
+                )
+            )
+        ):
+            logger.warning(
+                "Loading sample metadata with "
+                f"batch_size={self.sample_metadata_builder_kwargs['batch_size']} "
+                "is not recommended when the number of data files is different from "
+                "the number of metadata files. Consider setting\n"
+                "sample_metadata_builder_kwargs={'batch_size': None}\n"
+                "to load the metadata files without batching."
+            )
+        if (
+            "batch_size" in self.sample_metadata_builder_kwargs
+            and "batch_size" in self.data_builder_kwargs
+            and self.sample_metadata_builder_kwargs["batch_size"]
+            != self.data_builder_kwargs["batch_size"]
+        ):
+            logger.warning(
+                "The batch size when reading sample metadata "
+                f"(batch_size={self.sample_metadata_builder_kwargs['batch_size']}) "
+                "is different from the batch size when reading data "
+                f"(batch_size={self.data_builder_kwargs['batch_size']}). "
+                "This may lead to unexpected behavior."
+            )
+        self.sample_metadata_builder_kwargs, _, _ = self._get_builder_kwargs(
+            self.sample_metadata_files, self.sample_metadata_builder_kwargs
+        )
+
+        if self.feature_metadata_builder_kwargs is None:
+            self.feature_metadata_builder_kwargs = {}
+        self.feature_metadata_builder_kwargs, _, _ = self._get_builder_kwargs(
+            self.feature_metadata_files, self.feature_metadata_builder_kwargs
+        )
 
     def _ensure_list(self, value):
         if value is None:
