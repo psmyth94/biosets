@@ -89,7 +89,10 @@ class SchemaManager(DownloadManager):
         files, features = zip(*out)
         self.features = {}
         for feature in features:
-            self.features.update(feature)
+            if feature is not None:
+                self.features.update(feature)
+        if len(self.features) == 0:
+            self.features = None
         return list(files)
 
     def _gather_schema(self, file):
