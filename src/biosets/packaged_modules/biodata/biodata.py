@@ -716,6 +716,16 @@ class BioData(datasets.ArrowBasedBuilder):
         _feature_metadata = {str(k): as_py(v) for k, v in zip(features, metadata)}
         return _feature_metadata
 
+    def _get_splits_and_dl_manager(self, dl_manager, generator, infer_features=False):
+        if infer_features and (
+            self.config.add_missing_columns or self.config.zero_as_missing
+        ):
+            _dl_manager = SchemaManager.from_dl_manager(dl_manager)
+        else:
+            _dl_manager = dl_manager
+        splits = generator._split_generators(_dl_manager)
+        return splits, _dl_manager
+
     def _split_generators(self, dl_manager):
         """We handle string, list and dicts in datafiles"""
         if not self.config.data_files:
@@ -723,31 +733,84 @@ class BioData(datasets.ArrowBasedBuilder):
                 f"At least one data file must be specified, but got data_files={self.config.data_files}"
             )
 
-        generator = datasets.load_dataset_builder(**self.config.data_kwargs)
-        if (
-            self.config.features is None
-            and self.config.add_missing_columns
-            or self.config.zero_as_missing
-        ):
-            _dl_manager = SchemaManager.from_dl_manager(dl_manager)
-        else:
-            _dl_manager = dl_manager
+        infer_features = self.config.features is None
+        features = self.config.features or Features()
+        data_generator = datasets.load_dataset_builder(
+            **self.config.data_builder_kwargs
+        )
+        data_splits, data_dl_manager = self._get_splits_and_dl_manager(
+            dl_manager, data_generator, infer_features
+        )
 
-        data_splits = generator._split_generators(_dl_manager)
-        if hasattr(_dl_manager, "features"):
-            self.info.features = Features(_dl_manager.features)
-            generator.info.features = self.info.features
+        sample_metadata_generator = None
+        if self.config.sample_metadata_files:
+            sample_metadata_generator = datasets.load_dataset_builder(
+                **self.config.sample_metadata_builder_kwargs
+            )
+            sample_metadata_splits, sample_metadata_dl_manager = (
+                self._get_splits_and_dl_manager(
+                    dl_manager, sample_metadata_generator, infer_features=infer_features
+                )
+            )
+            if infer_features and getattr(sample_metadata_dl_manager, "features", None):
+                sample_metadata_generator.info.features = Features(
+                    sample_metadata_dl_manager.features
+                )
+                features.update(sample_metadata_generator.info.features)
+
+        feature_metadata_generator = None
+        if self.config.feature_metadata_files:
+            feature_metadata_generator = datasets.load_dataset_builder(
+                **self.config.feature_metadata_builder_kwargs
+            )
+            feature_metadata_splits, feature_metadata_dl_manager = (
+                self._get_splits_and_dl_manager(dl_manager, feature_metadata_generator)
+            )
+
+        if getattr(data_dl_manager, "features", None) and infer_features:
+            # data_generator.info.features = Features(data_dl_manager.features)
+            features.update(Features(data_dl_manager.features))
+
+        if len(features) > 0:
+            self.config.features = features
+
+        # don't rely on the features from other dataset builders
+        data_generator.info.features = None
 
         splits = []
         for data_split in data_splits:
             # retrieve the labels from the metadata table if not already specified
 
+            sample_metadata_generator_kwargs = None
+            if sample_metadata_generator:
+                sample_metadata_generator_kwargs = [
+                    v for v in sample_metadata_splits if v.name == data_split.name
+                ]
+                if sample_metadata_generator_kwargs:
+                    sample_metadata_generator_kwargs = sample_metadata_generator_kwargs[
+                        0
+                    ].gen_kwargs
+
+            feature_metadata_generator_kwargs = None
+            if feature_metadata_generator:
+                feature_metadata_generator_kwargs = [
+                    v for v in feature_metadata_splits if v.name == data_split.name
+                ]
+                if feature_metadata_generator_kwargs:
+                    feature_metadata_generator_kwargs = (
+                        feature_metadata_generator_kwargs[0].gen_kwargs
+                    )
+
             splits.append(
                 datasets.SplitGenerator(
                     name=data_split.name,
                     gen_kwargs={
-                        "generator": generator,
+                        "generator": data_generator,
                         **data_split.gen_kwargs,
+                        "sample_metadata_generator": sample_metadata_generator,
+                        "sample_metadata_generator_kwargs": sample_metadata_generator_kwargs,
+                        "feature_metadata_generator": feature_metadata_generator,
+                        "feature_metadata_generator_kwargs": feature_metadata_generator_kwargs,
                         "split_name": data_split.name,
                     },
                 )
