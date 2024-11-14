@@ -32,7 +32,7 @@ class CsvConfig(datasets.BuilderConfig):
     has_header: bool = True
     columns: Optional[Union[Sequence[int], Sequence[str]]] = None
     new_columns: Optional[Sequence[str]] = None
-    separator: str = ","
+    sep: str = ","
     comment_prefix: Optional[str] = None
     quote_char: str = '"'
     skip_rows: int = 0
@@ -65,10 +65,11 @@ class CsvConfig(datasets.BuilderConfig):
     @property
     def pl_scan_csv_kwargs(self):
         return {
+            "batch_size": self.batch_size,
             "has_header": self.has_header,
             "columns": self.columns,
             "new_columns": self.new_columns,
-            "separator": self.separator,
+            "separator": self.sep,
             "comment_prefix": self.comment_prefix,
             "quote_char": self.quote_char,
             "skip_rows": self.skip_rows,
@@ -169,6 +170,7 @@ class Csv(_Csv):
                 # dtype allows reading an int column as str
 
                 dtype = None
+                schema_overrides = None
                 if schema is not None:
                     schema_overrides = {}
                     for name, dtype, feature in zip(
@@ -189,25 +191,28 @@ class Csv(_Csv):
                         **self.config.pl_scan_csv_kwargs,
                     )
                     try:
+                        batch_idx = 0
                         while True:
-                            batches = csv_file_reader.next_batches(
-                                self.config.batch_size
-                            )
+                            batches = csv_file_reader.next_batches(1)
                             if not batches:
                                 break
-                            for batch_idx, df in enumerate(batches):
-                                # Convert Polars DataFrame to Arrow Table
-                                pa_table = df.to_arrow()
-                                # Uncomment for debugging
-                                # logger.warning(f"pa_table: {pa_table} num rows: {pa_table.num_rows}")
-                                # logger.warning('\n'.join(str(pa_table.slice(i, 1).to_pydict()) for i in range(pa_table.num_rows)))
-                                yield (file_idx, batch_idx), self._cast_table(pa_table)
+                            df = batches[0]
+                            # Convert Polars DataFrame to Arrow Table
+                            pa_table = df.to_arrow()
+                            # Uncomment for debugging
+                            # logger.warning(f"pa_table: {pa_table} num rows: {pa_table.num_rows}")
+                            # logger.warning('\n'.join(str(pa_table.slice(i, 1).to_pydict()) for i in range(pa_table.num_rows)))
+                            yield (file_idx, batch_idx), self._cast_table(pa_table)
+                            batch_idx += 1
 
                     except ValueError as e:
                         logger.error(f"Error while reading file {file}: {e}")
                         raise e
-            except Exception:
+            except Exception as e:
                 self.config = self.config.HF_CSV_CONFIG
                 self.BUILDER_CONFIG_CLASS = HfCsvConfig
-                for table in super()._generate_tables(files):
-                    yield table
+                try:
+                    for table in super()._generate_tables(files):
+                        yield table
+                except Exception as e2:
+                    raise e2 from e

@@ -11,7 +11,6 @@ import datasets
 import pandas as pd
 import pandas.api.types as pdt
 import pyarrow as pa
-import pyarrow.parquet as pq
 from biocore.data_handling import DataHandler
 from biocore.utils.import_util import is_polars_available
 from datasets.data_files import (
@@ -26,7 +25,7 @@ from datasets.packaged_modules.arrow import arrow as hf_arrow
 from datasets.packaged_modules.csv import csv as hf_csv
 from datasets.packaged_modules.json import json as hf_json
 from datasets.packaged_modules.parquet import parquet as hf_parquet
-from datasets.utils.py_utils import asdict, tqdm
+from datasets.utils.py_utils import asdict
 
 from biosets.data_files import (
     FEATURE_METADATA_PATTERNS,
@@ -34,6 +33,7 @@ from biosets.data_files import (
     get_feature_metadata_patterns,
     get_metadata_patterns,
 )
+from biosets.download import SchemaManager
 from biosets.features import (
     Batch,
     BinClassLabel,
@@ -59,7 +59,7 @@ logger = logging.get_logger(__name__)
 SAMPLE_COLUMN = "samples"
 BATCH_COLUMN = "batches"
 METADATA_COLUMN = "metadata"
-TARGET_COLUMN = "labels"
+TARGET_COLUMN = "encoded_labels"
 FEATURE_COLUMN = "features"
 DTYPE_MAP = {
     "double": "float32",
@@ -120,14 +120,14 @@ class InvalidPath(Exception):
 
 
 SAMPLE_COLUMN_WARN_MSG = (
-    "Could not find the sample column in the sample metadata table.\n"
+    "\nCould not find the sample column in the sample metadata table.\n"
     "Please provide the sample column by setting the `sample_column` argument. For example:\n"
     "   >>> `load_dataset(..., sample_column='samples')`.\n"
     "Sample metadata will be ignored."
 )
 
 FEATURE_COLUMN_WARN_MSG = (
-    "Could not find the feature column in the feature metadata table.\n"
+    "\nCould not find the feature column in the feature metadata table.\n"
     "Please provide the feature column by setting the `feature_column` argument. For example:\n"
     "   >>> `load_dataset(..., feature_column='my_feature_column')`.\n"
     "Feature metadata will be ignored."
@@ -168,16 +168,12 @@ class BioDataConfig(datasets.BuilderConfig):
     feature_column: Optional[str] = None
     columns: Optional[List[str]] = None
 
-    drop_labels: bool = None
-    drop_samples: bool = None
-    drop_batches: bool = None
-    drop_metadata: bool = None
-    drop_feature_metadata: bool = None
+    encode_labels: bool = None
 
     builder_kwargs: dict = None
-    data_kwargs: dict = None
-    metadata_kwargs: dict = None
-    feature_metadata_kwargs: dict = None
+    data_builder_kwargs: dict = None
+    sample_metadata_builder_kwargs: dict = None
+    feature_metadata_builder_kwargs: dict = None
 
     use_polars: bool = True
 
@@ -215,8 +211,10 @@ class BioDataConfig(datasets.BuilderConfig):
         # Check for invalid characters in the config name
         if any(char in self.name for char in INVALID_WINDOWS_CHARACTERS_IN_PATH):
             raise datasets.builder.InvalidConfigName(
-                f"Bad characters from black list '{INVALID_WINDOWS_CHARACTERS_IN_PATH}' found in '{self.name}'. "
-                f"They could create issues when creating a directory for this config on Windows filesystem."
+                "Bad characters from black list "
+                f"'{INVALID_WINDOWS_CHARACTERS_IN_PATH}' found in '{self.name}'. "
+                "They could create issues when creating a directory for this config "
+                "on Windows filesystem."
             )
 
         # Validate and process data_files
@@ -316,7 +314,70 @@ class BioDataConfig(datasets.BuilderConfig):
                     f"of sharded data files in split '{split}'."
                 )
 
-        self.data_kwargs = self._get_builder_kwargs(self.data_files)
+        if self.data_builder_kwargs is None:
+            self.data_builder_kwargs = self.builder_kwargs
+        else:
+            self.builder_kwargs.update(self.data_builder_kwargs)
+            self.data_builder_kwargs = self.builder_kwargs
+        self.data_builder_kwargs, self.config_path, self.module_path = (
+            self._get_builder_kwargs(self.data_files, self.data_builder_kwargs)
+        )
+
+        if self.sample_metadata_builder_kwargs is None:
+            self.sample_metadata_builder_kwargs = {}
+        if (
+            "batch_size" not in self.sample_metadata_builder_kwargs
+            and "batch_size" in self.data_builder_kwargs
+            and all(
+                len(f1) == len(f2)
+                for f1, f2 in zip(
+                    self.data_files.values(), self.sample_metadata_files.values()
+                )
+            )
+        ):
+            self.sample_metadata_builder_kwargs["batch_size"] = (
+                self.data_builder_kwargs["batch_size"]
+            )
+        elif (
+            "batch_size" in self.sample_metadata_builder_kwargs
+            and self.sample_metadata_builder_kwargs["batch_size"] is not None
+            and not all(
+                len(f1) == len(f2)
+                for f1, f2 in zip(
+                    self.data_files.values(), self.sample_metadata_files.values()
+                )
+            )
+        ):
+            logger.warning(
+                "Loading sample metadata with "
+                f"batch_size={self.sample_metadata_builder_kwargs['batch_size']} "
+                "is not recommended when the number of data files is different from "
+                "the number of metadata files. Consider setting\n"
+                "sample_metadata_builder_kwargs={'batch_size': None}\n"
+                "to load the metadata files without batching."
+            )
+        if (
+            "batch_size" in self.sample_metadata_builder_kwargs
+            and "batch_size" in self.data_builder_kwargs
+            and self.sample_metadata_builder_kwargs["batch_size"]
+            != self.data_builder_kwargs["batch_size"]
+        ):
+            logger.warning(
+                "The batch size when reading sample metadata "
+                f"(batch_size={self.sample_metadata_builder_kwargs['batch_size']}) "
+                "is different from the batch size when reading data "
+                f"(batch_size={self.data_builder_kwargs['batch_size']}). "
+                "This may lead to unexpected behavior."
+            )
+        self.sample_metadata_builder_kwargs, _, _ = self._get_builder_kwargs(
+            self.sample_metadata_files, self.sample_metadata_builder_kwargs
+        )
+
+        if self.feature_metadata_builder_kwargs is None:
+            self.feature_metadata_builder_kwargs = {}
+        self.feature_metadata_builder_kwargs, _, _ = self._get_builder_kwargs(
+            self.feature_metadata_files, self.feature_metadata_builder_kwargs
+        )
 
     def _ensure_list(self, value):
         if value is None:
@@ -418,16 +479,17 @@ class BioDataConfig(datasets.BuilderConfig):
             processed_metadata_files[split] = metadata_files
         return DataFilesDict(processed_metadata_files)
 
-    def _get_builder_kwargs(self, files):
+    def _get_builder_kwargs(self, files, builder_kwargs):
         if files is None:
-            return {}
-        builder_kwargs = {}
+            return {}, None, None
+        new_builder_kwargs = {}
         iter_files = files
 
         if isinstance(files, (str, list, tuple)):
             iter_files = [files]
         if isinstance(iter_files, (dict, DataFilesDict)):
             iter_files = iter_files.values()
+        config_path, module_path = None, None
         for file in itertools.chain.from_iterable(iter_files):
             file_ext = os.path.splitext(file)[-1].lower()
 
@@ -443,47 +505,34 @@ class BioDataConfig(datasets.BuilderConfig):
                     file_ext, (None, None, None)
                 )
             if config_path is not None:
-                builder_kwargs = {}
-                builder_kwargs["data_files"] = files
+                new_builder_kwargs = {}
+                new_builder_kwargs["data_files"] = files
                 if hf_config_class:
-                    builder_kwargs["hf_kwargs"] = {}
-                if self.builder_kwargs:
-                    for k, v in self.builder_kwargs.items():
-                        if k in ["data_dir", "name"]:
+                    new_builder_kwargs["hf_kwargs"] = {}
+                if builder_kwargs:
+                    for k, v in builder_kwargs.items():
+                        if k in ["data_dir", "name"] or k in new_builder_kwargs:
                             continue
                         if k in _config_class.__dataclass_fields__:
-                            builder_kwargs[k] = v
+                            new_builder_kwargs[k] = v
                         if (
                             hf_config_class
                             and k in hf_config_class.__dataclass_fields__
                         ):
-                            builder_kwargs["hf_kwargs"][k] = v
-                for k, v in self.__dict__.items():
-                    if k in ["data_dir", "name"]:
-                        continue
-                    if k in _config_class.__dataclass_fields__:
-                        builder_kwargs[k] = v
-                    if hf_config_class and k in hf_config_class.__dataclass_fields__:
-                        builder_kwargs["hf_kwargs"][k] = v
+                            new_builder_kwargs["hf_kwargs"][k] = v
                 if file_ext in [".tsv", ".txt"]:
-                    if is_polars_available() and "separator" not in builder_kwargs:
-                        builder_kwargs["separator"] = "\t"
+                    if is_polars_available() and "sep" not in new_builder_kwargs:
+                        new_builder_kwargs["sep"] = "\t"
                     if (
-                        "hf_kwargs" in builder_kwargs
-                        and "sep" not in builder_kwargs["hf_kwargs"]
+                        "hf_kwargs" in new_builder_kwargs
+                        and "sep" not in new_builder_kwargs["hf_kwargs"]
                     ):
-                        builder_kwargs["hf_kwargs"]["sep"] = "\t"
+                        new_builder_kwargs["hf_kwargs"]["sep"] = "\t"
                 module_path = inspect.getfile(_config_class)
-                self.config_path = config_path
-                self.module_path = module_path
-                if "datasets" == _config_class.__module__.split(".")[0]:
-                    builder_kwargs["path"] = config_path
-                else:
-                    builder_kwargs["path"] = config_path
-                    # builder_kwargs["path"] = module_path
-                    # builder_kwargs["trust_remote_code"] = True
+                if _config_class.__module__.split(".")[0] in ["datasets", "biosets"]:
+                    new_builder_kwargs["path"] = config_path
                 break
-        return builder_kwargs
+        return new_builder_kwargs, config_path, module_path
 
 
 class BioData(datasets.ArrowBasedBuilder):
@@ -536,6 +585,7 @@ class BioData(datasets.ArrowBasedBuilder):
     _drop_columns = set()
     _all_columns = set()
     _label_map: dict = None
+    _missing_label_value = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -609,7 +659,7 @@ class BioData(datasets.ArrowBasedBuilder):
             # since the metadata columns were specified, we notify the user of any columns that were not found
             if not_found_cols:
                 logger.warning_once(
-                    f"Could not find the following metadata columns in the table: {not_found_cols}"
+                    f"\nCould not find the following metadata columns in the table: {not_found_cols}"
                 )
 
         # gather the sample metadata columns if not already specified
@@ -647,7 +697,7 @@ class BioData(datasets.ArrowBasedBuilder):
                 ) - set(data_features)
                 if missing_columns:
                     logger.warning_once(
-                        f"Could not find the following columns in the data table: {missing_columns}"
+                        f"\nCould not find the following columns in the data table: {missing_columns}"
                     )
             else:
                 logger.warning_once(FEATURE_COLUMN_WARN_MSG)
@@ -666,6 +716,16 @@ class BioData(datasets.ArrowBasedBuilder):
         _feature_metadata = {str(k): as_py(v) for k, v in zip(features, metadata)}
         return _feature_metadata
 
+    def _get_splits_and_dl_manager(self, dl_manager, generator, infer_features=False):
+        if infer_features and (
+            self.config.add_missing_columns or self.config.zero_as_missing
+        ):
+            _dl_manager = SchemaManager.from_dl_manager(dl_manager)
+        else:
+            _dl_manager = dl_manager
+        splits = generator._split_generators(_dl_manager)
+        return splits, _dl_manager
+
     def _split_generators(self, dl_manager):
         """We handle string, list and dicts in datafiles"""
         if not self.config.data_files:
@@ -673,68 +733,84 @@ class BioData(datasets.ArrowBasedBuilder):
                 f"At least one data file must be specified, but got data_files={self.config.data_files}"
             )
 
-        generator = datasets.load_dataset_builder(**self.config.data_kwargs)
-        data_splits = generator._split_generators(dl_manager)
+        infer_features = self.config.features is None
+        features = self.config.features or Features()
+        data_generator = datasets.load_dataset_builder(
+            **self.config.data_builder_kwargs
+        )
+        data_splits, data_dl_manager = self._get_splits_and_dl_manager(
+            dl_manager, data_generator, infer_features
+        )
+
+        sample_metadata_generator = None
+        if self.config.sample_metadata_files:
+            sample_metadata_generator = datasets.load_dataset_builder(
+                **self.config.sample_metadata_builder_kwargs
+            )
+            sample_metadata_splits, sample_metadata_dl_manager = (
+                self._get_splits_and_dl_manager(
+                    dl_manager, sample_metadata_generator, infer_features=infer_features
+                )
+            )
+            if infer_features and getattr(sample_metadata_dl_manager, "features", None):
+                sample_metadata_generator.info.features = Features(
+                    sample_metadata_dl_manager.features
+                )
+                features.update(sample_metadata_generator.info.features)
+
+        feature_metadata_generator = None
+        if self.config.feature_metadata_files:
+            feature_metadata_generator = datasets.load_dataset_builder(
+                **self.config.feature_metadata_builder_kwargs
+            )
+            feature_metadata_splits, feature_metadata_dl_manager = (
+                self._get_splits_and_dl_manager(dl_manager, feature_metadata_generator)
+            )
+
+        if getattr(data_dl_manager, "features", None) and infer_features:
+            # data_generator.info.features = Features(data_dl_manager.features)
+            features.update(Features(data_dl_manager.features))
+
+        if len(features) > 0:
+            self.config.features = features
+
+        # don't rely on the features from other dataset builders
+        data_generator.info.features = None
 
         splits = []
         for data_split in data_splits:
             # retrieve the labels from the metadata table if not already specified
 
-            if self.config.features is None:
-                # don't rely on the features from the data file
-                if (
-                    self.config.add_missing_columns or self.config.zero_as_missing
-                ) and any(
-                    self.config.module_path.endswith(f)
-                    for f in ["parquet.py", "arrow.py"]
-                ):
-                    self.info.features = Features()
-                    if (
-                        len(self.config.data_files[data_split.name]) > 1
-                        and self.config.use_first_schema is None
-                    ):
-                        file_type = self.config.module_path.split("/")[-1].split(".")[0]
-                        logger.warning(
-                            f"Multiple {file_type} files were provided. The schema "
-                            "will use the combined schema of all data files. To use "
-                            "the schema of only the first file, set "
-                            "`use_first_schema=True`. To turn off this warning, set "
-                            "`use_first_schema=False`."
-                        )
-                    num_files = len(self.config.data_files[data_split.name])
-                    for idx, file in tqdm(
-                        enumerate(
-                            itertools.chain.from_iterable(
-                                [self.config.data_files[data_split.name]]
-                            )
-                        ),
-                        total=num_files,
-                        desc=f"Loading schema for files in {data_split.name}",
-                    ):
-                        with open(file, "rb") as f:
-                            if self.config.module_path.endswith("parquet.py"):
-                                self.info.features.update(
-                                    datasets.Features.from_arrow_schema(
-                                        pq.read_schema(f)
-                                    )
-                                )
-                            elif self.config.module_path.endswith("arrow.py"):
-                                self.info.features.update(
-                                    datasets.Features.from_arrow_schema(
-                                        pa.ipc.read_schema(f)
-                                    )
-                                )
-                        if self.config.use_first_schema:
-                            break
-                    generator.info.features = self.info.features
-            else:
-                self.info.features = self.config.features
+            sample_metadata_generator_kwargs = None
+            if sample_metadata_generator:
+                sample_metadata_generator_kwargs = [
+                    v for v in sample_metadata_splits if v.name == data_split.name
+                ]
+                if sample_metadata_generator_kwargs:
+                    sample_metadata_generator_kwargs = sample_metadata_generator_kwargs[
+                        0
+                    ].gen_kwargs
+
+            feature_metadata_generator_kwargs = None
+            if feature_metadata_generator:
+                feature_metadata_generator_kwargs = [
+                    v for v in feature_metadata_splits if v.name == data_split.name
+                ]
+                if feature_metadata_generator_kwargs:
+                    feature_metadata_generator_kwargs = (
+                        feature_metadata_generator_kwargs[0].gen_kwargs
+                    )
+
             splits.append(
                 datasets.SplitGenerator(
                     name=data_split.name,
                     gen_kwargs={
-                        "generator": generator,
+                        "generator": data_generator,
                         **data_split.gen_kwargs,
+                        "sample_metadata_generator": sample_metadata_generator,
+                        "sample_metadata_generator_kwargs": sample_metadata_generator_kwargs,
+                        "feature_metadata_generator": feature_metadata_generator,
+                        "feature_metadata_generator_kwargs": feature_metadata_generator_kwargs,
                         "split_name": data_split.name,
                     },
                 )
@@ -772,18 +848,26 @@ class BioData(datasets.ArrowBasedBuilder):
                     else:
                         self.config.labels.append("positive")
 
+                if self._missing_label_value is None:
+                    self._missing_label_value = -1
                 if not self._label_map:
                     self._label_map = {}
                     if self.config.positive_labels:
                         self._label_map.update(
                             {label: 1 for label in self.config.positive_labels}
                         )
+                        self._missing_label_value = 0
                     if self.config.negative_labels:
                         self._label_map.update(
                             {label: 0 for label in self.config.negative_labels}
                         )
+                        self._missing_label_value = 1
+
+                    if self.config.positive_labels and self.config.negative_labels:
+                        self._missing_label_value = -1
+
                 bin_labels = [
-                    self._label_map.get(label, -1)
+                    self._label_map.get(label, self._missing_label_value)
                     for label in DataHandler.to_list(
                         DataHandler.select_column(tbl, self.config.target_column)
                     )
@@ -810,7 +894,7 @@ class BioData(datasets.ArrowBasedBuilder):
 
         return tbl
 
-    def _add_sample_metadata(self, table, sample_metadata=None):
+    def _add_sample_metadata(self, table, data_generator, sample_metadata=None):
         if self.config.sample_metadata_files:
             if self.config.sample_column in table.column_names:
                 colliding_names = list(
@@ -849,6 +933,16 @@ class BioData(datasets.ArrowBasedBuilder):
                         .to_arrow()
                     )
             else:
+                table_dim = DataHandler.get_shape(table)
+                sample_metadata_dim = DataHandler.get_shape(sample_metadata)
+                if table_dim[0] != sample_metadata_dim[0]:
+                    raise ValueError(
+                        "No sample column found in the data table and the number of "
+                        "rows in the sample metadata table does not match the number "
+                        "of rows in the data table. Please provide a sample column in "
+                        "the data table or ensure that the number of rows in the sample "
+                        "metadata table matches the number of rows in the data table."
+                    )
                 # we are gonna assume that the row order in metadata is the same as the data
                 colliding_names = list(
                     (set(table.column_names) & set(sample_metadata.columns))
@@ -880,64 +974,97 @@ class BioData(datasets.ArrowBasedBuilder):
     def _prepare_labels(self, table, sample_metadata=None, split_name=None):
         if self.config.target_column:
             labels = self.config.labels
-            if (
-                not self.config.positive_labels
-                and not self.config.negative_labels
-                and not self.config.labels
-            ):
+            if self.config.encode_labels or self.config.encode_labels is None:
                 if (
-                    self.config.sample_metadata_files
-                    and len(self.config.sample_metadata_files.get(split_name, [])) == 1
-                    and self.config.target_column
-                    in DataHandler.get_column_names(sample_metadata)
+                    not self.config.positive_labels
+                    and not self.config.negative_labels
+                    and not self.config.labels
                 ):
-                    all_labels = DataHandler.to_list(
-                        DataHandler.select_column(
-                            sample_metadata, self.config.target_column
-                        )
-                    )
-                    labels = list(set(all_labels))
-                elif len(
-                    self.config.data_files[split_name]
-                ) == 1 and self.config.target_column in DataHandler.get_column_names(
-                    table
-                ):
-                    all_labels = DataHandler.to_list(
-                        DataHandler.select_column(table, self.config.target_column)
-                    )
-                    labels = list(set(all_labels))
-                else:
                     if (
-                        sample_metadata is not None
+                        self.config.sample_metadata_files
+                        and len(self.config.sample_metadata_files.get(split_name, []))
+                        == 1
                         and self.config.target_column
                         in DataHandler.get_column_names(sample_metadata)
                     ):
-                        raise ValueError(
-                            "Labels must be provided if multiple sample metadata files "
-                            "are provided. Either set `labels`, `positive_labels` "
-                            "and/or `negative_labels` in `load_dataset`."
+                        all_labels = DataHandler.to_list(
+                            DataHandler.select_column(
+                                sample_metadata, self.config.target_column
+                            )
                         )
+                        labels = list(set(all_labels))
+                    elif (
+                        len(self.config.data_files[split_name]) == 1
+                        and self.config.target_column
+                        in DataHandler.get_column_names(table)
+                    ):
+                        all_labels = DataHandler.to_list(
+                            DataHandler.select_column(table, self.config.target_column)
+                        )
+                        labels = list(set(all_labels))
                     else:
-                        raise ValueError(
-                            "Labels must be provided if multiple data files "
-                            "are provided and the target column is found in the "
-                            "data table. Either set `labels`, `positive_labels` "
-                            "and/or `negative_labels` in `load_dataset`."
-                        )
+                        if (
+                            sample_metadata is not None
+                            and self.config.target_column
+                            in DataHandler.get_column_names(sample_metadata)
+                        ):
+                            raise ValueError(
+                                "Labels must be provided if multiple sample metadata files "
+                                "are provided. Either set `labels`, `positive_labels` "
+                                "and/or `negative_labels` in `load_dataset`."
+                            )
+                        else:
+                            raise ValueError(
+                                "Labels must be provided if multiple data files "
+                                "are provided and the target column is found in the "
+                                "data table. Either set `labels`, `positive_labels` "
+                                "and/or `negative_labels` in `load_dataset`."
+                            )
 
-            table = self._set_labels(table, labels=labels)
+                table = self._set_labels(table, labels=labels)
+            if (
+                self.config.features is not None
+                and self.TARGET_COLUMN not in self.config.features
+                and self.TARGET_COLUMN in table.column_names
+            ):
+                self.config.features = self._create_target_feature(
+                    self.config.features,
+                    table.schema.field(self.TARGET_COLUMN).type,
+                    return_error=False,
+                )
         return table
 
     def _generate_tables(self, generator: "ArrowBasedBuilder", *args, **gen_kwargs):
         """Generate tables from a list of generators."""
 
         split_name = gen_kwargs.pop("split_name")
-        feature_metadata = None
-        if self.config.feature_metadata_files:
-            feature_metadata = self._read_metadata(
-                self.config.feature_metadata_files[split_name]
+        sample_metadata_generator = gen_kwargs.pop("sample_metadata_generator", None)
+        sample_metadata_generator_kwargs = gen_kwargs.pop(
+            "sample_metadata_generator_kwargs", None
+        )
+
+        sample_metadata_generator_iter = None
+        if sample_metadata_generator:
+            sample_metadata_generator_iter = sample_metadata_generator._generate_tables(
+                **sample_metadata_generator_kwargs
             )
 
+        feature_metadata_generator = gen_kwargs.pop("feature_metadata_generator", None)
+        feature_metadata_generator_kwargs = gen_kwargs.pop(
+            "feature_metadata_generator_kwargs", None
+        )
+
+        feature_metadata = None
+        if self.config.feature_metadata_files:
+            feature_metadata = [
+                tbl
+                for _, tbl in feature_metadata_generator._generate_tables(
+                    **feature_metadata_generator_kwargs
+                )
+            ]
+            feature_metadata = pa.concat_tables(
+                feature_metadata, promote_options="default"
+            )
         check_columns = True
         feature_metadata_dict = None
         # key might not correspond to the current index of the file received (e.g. npz)
@@ -947,7 +1074,11 @@ class BioData(datasets.ArrowBasedBuilder):
             stored_metadata_schema = table.schema.metadata or {}
 
             sample_metadata = self._load_metadata(
-                file_index, sample_metadata, split_name=split_name
+                table,
+                key,
+                sample_metadata_generator_iter,
+                sample_metadata,
+                split_name=split_name,
             )
             if check_columns:
                 features = table.column_names
@@ -974,7 +1105,7 @@ class BioData(datasets.ArrowBasedBuilder):
                 table_dims = DataHandler.get_shape(table)
                 if feature_metadata_dims[0] == table_dims[1]:
                     logger.warning_once(
-                        "No data columns were provided, but the number of columns "
+                        "\nNo data columns were provided, but the number of columns "
                         "in the data table matches the number of features in the "
                         "feature metadata. Using feature metadata as column names."
                     )
@@ -987,12 +1118,12 @@ class BioData(datasets.ArrowBasedBuilder):
                     table = DataHandler.set_column_names(table, features)
                 else:
                     logger.warning_once(
-                        "Feature metadata was provided along with an npz file, but the "
+                        "\nFeature metadata was provided along with an npz file, but the "
                         "number of features in the metadata does not match the number "
                         "of columns in the data table. Ignoring feature metadata."
                     )
 
-            table = self._add_sample_metadata(table, sample_metadata)
+            table = self._add_sample_metadata(table, generator, sample_metadata)
             table = self._prepare_labels(table, sample_metadata, split_name=split_name)
             # table = self._prepare_data(table)
             metadata_schema = None
@@ -1013,7 +1144,7 @@ class BioData(datasets.ArrowBasedBuilder):
                 metadata_schema = Features.from_arrow_schema(table.schema)
 
             if not self.info.features:
-                if self.config.features is not None:
+                if self.config.features:
                     self.info.features = self.config.features
                 else:
                     self.info.features = self._create_features(
@@ -1021,8 +1152,10 @@ class BioData(datasets.ArrowBasedBuilder):
                         column_names=DataHandler.get_column_names(table),
                         feature_metadata=feature_metadata_dict,
                     )
-            if self.info.features:
-                missing_columns = set(self.info.features) - set(table.column_names)
+                    self.config.features = self.info.features
+
+            if self.config.features:
+                missing_columns = set(self.config.features) - set(table.column_names)
                 if missing_columns:
                     if self.config.add_missing_columns:
                         num_rows = table.num_rows
@@ -1032,7 +1165,15 @@ class BioData(datasets.ArrowBasedBuilder):
                             for name in missing_columns
                         }
                         combined_columns = {**table.to_pydict(), **new_columns}
-                        table = pa.table(combined_columns)
+                        table = pa.table(
+                            {k: combined_columns[k] for k in self.config.features},
+                            schema=self.config.features.arrow_schema,
+                        )
+                else:
+                    table = DataHandler.select_columns(
+                        table, list(self.config.features.keys())
+                    )
+                    table = table.cast(self.config.features.arrow_schema)
 
             metadata_dump = {}
             for k, v in stored_metadata_schema.items():
@@ -1046,7 +1187,7 @@ class BioData(datasets.ArrowBasedBuilder):
                 "info", {}
             )
             metadata_dump["huggingface"]["info"]["features"] = asdict(
-                self.info.features
+                self.config.features
             )
 
             table = table.replace_schema_metadata(
@@ -1056,7 +1197,9 @@ class BioData(datasets.ArrowBasedBuilder):
             file_index += 1
             yield key, table
 
-    def _load_metadata(self, file_index, sample_metadata=None, split_name=None):
+    def _load_metadata(
+        self, table, file_key, gen_table_iter, sample_metadata=None, split_name=None
+    ):
         if self.config.sample_metadata_files:
             if not isinstance(self.config.sample_metadata_files, DataFilesDict):
                 raise ValueError(
@@ -1066,40 +1209,59 @@ class BioData(datasets.ArrowBasedBuilder):
                 return None
 
             files = self.config.sample_metadata_files[split_name]
-            if len(files) == 1:
-                if file_index != 0:
+            if len(files) == 1 and sample_metadata is not None:
+                return sample_metadata
+
+            if len(files) > 1 and len(self.config.data_files[split_name]) == 1:
+                # Load the entire metadata table if only one data file is provided
+                if sample_metadata is not None:
                     return sample_metadata
-            # only use file_index if data files are sharded
-            elif len(self.config.data_files[split_name]) > 1:
-                files = [files[file_index]]
+                tables = []
+                total_rows = 0
+                out = next(gen_table_iter)
+                while out is not None:
+                    _, row = out
+                    total_rows += row.num_rows
+                    tables.append(row)
+                    out = next(gen_table_iter, None)
+                sample_metadata = pa.concat_tables(tables, promote_options="default")
+                return DataHandler.to_pandas(sample_metadata)
 
-            sample_metadata = self._read_metadata(files, to_arrow=False)
-            # TODO: temporary fix for not getting a pandas DataFrame
-            if isinstance(sample_metadata, pa.Table):
-                sample_metadata = DataHandler.to_pandas(sample_metadata)
-            return sample_metadata
+            sample_metadata = next(gen_table_iter)[1]
+            return DataHandler.to_pandas(sample_metadata)
 
-    def _read_metadata(self, metadata_files, use_polars: bool = True, to_arrow=True):
-        if not metadata_files:
-            raise ValueError("Empty list of metadata files provided.")
-
-        metadata_ext = os.path.splitext(metadata_files[0])[-1][1:]
-
-        if "json" in metadata_ext:
-            metadata_ext = "json"
-
-        dataset = next(
-            iter(
-                datasets.load_dataset(
-                    metadata_ext,
-                    data_files=metadata_files,
-                    cache_dir=self._cache_dir_root,
-                ).values()
+    def _create_target_feature(
+        self, schema: dict, dtype: pa.DataType, return_error=True
+    ):
+        if self.config.labels and is_classification_type(dtype):
+            if self.config.positive_labels or self.config.negative_labels:
+                schema[self.TARGET_COLUMN] = BinClassLabel(
+                    positive_labels=self.config.positive_labels,
+                    negative_labels=self.config.negative_labels,
+                    names=self.config.labels,
+                    id=self.config.target_column,
+                )
+            else:
+                schema[self.TARGET_COLUMN] = ClassLabel(
+                    num_classes=len(self.config.labels),
+                    names=self.config.labels,
+                    id=self.config.target_column,
+                )
+        elif is_regression_type(dtype):
+            schema[self.TARGET_COLUMN] = RegressionTarget(
+                dtype.dtype, id=self.config.target_column
             )
-        )
-        if to_arrow:
-            return dataset._data.table
-        return dataset.to_pandas()
+        elif return_error:
+            raise ValueError(
+                "The dataset seems to be a classification task, but the labels are not provided.\n"
+                "Please provide the labels in the `labels` argument. For example:\n"
+                "   >>> dataset = dataset.load_dataset('csv', data_files='data.csv', labels=[0, 1, 2])\n"
+                "Or provide a sample metadata table with the labels column. For example:\n"
+                "   >>> # metadata.csv contains a column named 'disease state' with labels 0, 1, 2\n"
+                "   >>> dataset.load_dataset('csv', data_files='data.csv', sample_metadata_files='metadata.csv', target_column='disease state')\n"
+            )
+
+        return schema
 
     def _create_features(
         self,
@@ -1136,8 +1298,8 @@ class BioData(datasets.ArrowBasedBuilder):
             new_schema={},
         ):
             for k, v in _schema.items():
-                if self.info.features:
-                    v_ = self.info.features.get(k, None)
+                if self.config.features:
+                    v_ = self.config.features.get(k, None)
                     if v_:
                         new_schema[k] = v_
                         continue
@@ -1186,32 +1348,9 @@ class BioData(datasets.ArrowBasedBuilder):
                                 v.id = self.config.target_column
                                 new_schema[self.TARGET_COLUMN] = v
 
-                    elif is_regression_type(v.pa_type):
-                        new_schema[self.TARGET_COLUMN] = RegressionTarget(
-                            v.dtype, id=self.config.target_column
-                        )
-                    elif self.config.labels and is_classification_type(v.pa_type):
-                        if self.config.positive_labels or self.config.negative_labels:
-                            new_schema[self.TARGET_COLUMN] = BinClassLabel(
-                                positive_labels=self.config.positive_labels,
-                                negative_labels=self.config.negative_labels,
-                                names=self.config.labels,
-                                id=self.config.target_column,
-                            )
-                        else:
-                            new_schema[self.TARGET_COLUMN] = ClassLabel(
-                                num_classes=len(self.config.labels),
-                                names=self.config.labels,
-                                id=self.config.target_column,
-                            )
                     else:
-                        raise ValueError(
-                            "The dataset seems to be a classification task, but the labels are not provided.\n"
-                            "Please provide the labels in the `labels` argument. For example:\n"
-                            "   >>> dataset = dataset.load_dataset('csv', data_files='data.csv', labels=[0, 1, 2])\n"
-                            "Or provide a sample metadata table with the labels column. For example:\n"
-                            "   >>> # metadata.csv contains a column named 'disease state' with labels 0, 1, 2\n"
-                            "   >>> dataset.load_dataset('csv', data_files='data.csv', sample_metadata_files='metadata.csv', target_column='disease state')\n"
+                        new_schema = self._create_target_feature(
+                            new_schema, v.pa_type, return_error=True
                         )
                 elif k == self.METADATA_COLUMN and isinstance(v, dict):
                     new_schema[self.METADATA_COLUMN] = Metadata(feature=v)
@@ -1352,12 +1491,12 @@ def _infer_column_name(
     if column_name:
         if name_in_features and not name_in_metadata:
             logger.warning_once(
-                f"'{column_name}' was found in the data table but not in the metadata table.\n"
+                f"\n'{column_name}' was found in the data table but not in the metadata table.\n"
                 f"Please add or rename the column in the metadata table.\n"
             )
         elif not name_in_features and name_in_metadata:
             logger.warning_once(
-                f"'{column_name}' was found in the metadata table but not in the data table.\n"
+                f"\n'{column_name}' was found in the metadata table but not in the data table.\n"
                 f"Please add or rename the column in the data table.\n"
             )
         else:
@@ -1431,7 +1570,7 @@ def _infer_column_name(
                     logger.debug(f"Pattern match found: {dcol} -> {col}")
         if other_possible_col:
             logger.warning_once(
-                f"Two possible matches found for the {default_column_name} column:\n"
+                f"\nTwo possible matches found for the {default_column_name} column:\n"
                 f"1. '{possible_col}' in {which_table} table\n"
                 f"2. '{other_possible_col}' in {other_table} table\n"
                 "Please rename the columns or provide the `sample_column` argument to "
@@ -1441,7 +1580,7 @@ def _infer_column_name(
             )
         else:
             logger.warning_once(
-                f"A match for the {default_column_name} column was found in "
+                f"\nA match for the {default_column_name} column was found in "
                 f"{which_table} table: '{possible_col}'\n"
                 f"But it was not found in {other_table} table.\n"
                 "Please add or rename the column in the appropriate table.\n"
@@ -1460,7 +1599,7 @@ def _infer_column_name(
         raise _COLUMN_TO_ERROR[default_column_name](err_msg)
 
     logger.warning_once(
-        f"Could not find the {default_column_name} column in " + generate_err_msg()
+        f"\nCould not find the {default_column_name} column in " + generate_err_msg()
     )
     return None
 
