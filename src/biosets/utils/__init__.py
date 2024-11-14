@@ -37,14 +37,6 @@ from .logging import (
     silence,
     unsilence,
 )
-from .naming import (
-    camelcase_to_snakecase,
-    filename_prefix_for_name,
-    filename_prefix_for_split,
-    filenames_for_dataset_split,
-    filepattern_for_dataset_split,
-    snakecase_to_camelcase,
-)
 from .py_util import (
     as_py,
     enable_full_determinism,
