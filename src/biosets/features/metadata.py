@@ -15,14 +15,19 @@ class ValueWithMetadata(Value):
 class Metadata:
     """Metadata features that can be used to describe the dataset."""
 
+    feature: Any = None
     id: Optional[str] = None
-    dtype: str = None
+    dtype: str = "dict"
     # Automatically constructed
     pa_type: ClassVar[Any] = None
     _type: str = field(default="Metadata", init=False, repr=False)
 
     def __post_init__(self):
-        if self.dtype == "dict":
+        if self.feature:
+            if isinstance(self.feature, Metadata):
+                self.pa_type = self.feature.pa_type
+                self.feature = self.feature.feature
+        elif self.dtype == "dict":
             self.pa_type = pa.struct(
                 {
                     k: string_to_arrow(v["dtype"])
